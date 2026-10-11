@@ -570,3 +570,50 @@ test('admin read metrics show only the top five titles without authors', async (
     await new Promise(resolve => server.close(resolve));
   }
 });
+
+test('SEO assets, request safety, sessions and canonical routes remain consistent', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hyperpedia-'));
+  process.env.DATA_DIR = dir;
+  process.env.SESSION_SECRET = 'x'.repeat(32);
+  delete require.cache[require.resolve('../src/store')];
+  delete require.cache[require.resolve('../src/server')];
+  const store = require('../src/store');
+  store.saveAdmin('admin', 'test-password');
+  store.savePosts([{ id: 'one', title: 'Een <verhaal>', author: 'Naam', body: '<!-- <script> </script> & herkenning', labels: ['stress'], replies: [{ author: 'Naam', body: 'Antwoord' }] }]);
+  const { server } = require('../src/server');
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const page = await fetch(`${base}/posts/one`, { headers: { cookie: 'broken=%ZZ' } });
+    assert.equal(page.status, 200);
+    const html = await page.text();
+    assert.match(html, /twitter:title" content="Een &lt;verhaal&gt;/);
+    assert.match(html, /og:image:width" content="1200"/);
+    const json = JSON.parse(html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]);
+    assert.equal(json.text, '<!-- <script> </script> & herkenning');
+    assert.equal(json.commentCount, 1);
+    assert.equal(json.datePublished, undefined);
+    const image = await fetch(json.image);
+    assert.equal(image.headers.get('content-type'), 'image/png');
+    assert.equal(Buffer.from(await image.arrayBuffer()).readUInt32BE(16), 1200);
+    const manifest = await (await fetch(`${base}/site.webmanifest`)).json();
+    for (const asset of ['/favicon.ico', '/favicon.svg', '/apple-touch-icon.png', ...manifest.icons.map(icon => icon.src)]) assert.equal((await fetch(base + asset)).status, 200);
+    assert.equal((await fetch(`${base}/posts/%ZZ`)).status, 400);
+    assert.equal((await fetch(`${base}/posts/extra/one`)).status, 404);
+    assert.equal((await fetch(`${base}/posts/one`, { method: 'HEAD' })).status, 200);
+    for (const url of ['/?page=1', '/?page=garbage', '/?page=999', '/posts/one/']) assert.equal((await fetch(base + url, { redirect: 'manual' })).status, 308);
+    const login = await fetch(`${base}/login`, { method: 'POST', body: new URLSearchParams({ username: 'admin', password: 'test-password' }), redirect: 'manual' });
+    const cookie = login.headers.get('set-cookie').split(';')[0];
+    const admin = await fetch(`${base}/admin`, { headers: { cookie } });
+    assert.equal(admin.headers.get('x-robots-tag'), 'noindex, nofollow');
+    assert.equal(admin.headers.get('cache-control'), 'private, no-store');
+    const edit = { method: 'POST', headers: { cookie }, body: new URLSearchParams({ title: '', body: '', author: '' }), redirect: 'manual' };
+    assert.equal((await fetch(`${base}/admin/edit/one`, edit)).status, 400);
+    assert.equal((await fetch(`${base}/admin/edit/one`, { ...edit, headers: { cookie, origin: 'https://other.example' } })).status, 403);
+    assert.equal((await fetch(`${base}/admin/edit/one`, { ...edit, body: 'x'.repeat(1024 * 1024 + 1) })).status, 413);
+    assert.equal(store.allPosts()[0].title, 'Een <verhaal>');
+    await fetch(`${base}/logout`, { method: 'POST', headers: { cookie }, redirect: 'manual' });
+    assert.equal((await fetch(`${base}/admin`, { headers: { cookie }, redirect: 'manual' })).status, 302);
+    assert.equal((await fetch(base)).status, 200);
+  } finally { await new Promise(resolve => server.close(resolve)); }
+});

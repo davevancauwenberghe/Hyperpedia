@@ -1,8 +1,8 @@
 const root = document.documentElement;
 const themeToggle = document.querySelector('.theme-toggle');
 const themeIcon = document.querySelector('[data-theme-icon]');
-const savedTheme = localStorage.getItem('theme');
-root.dataset.theme = savedTheme || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+let explicitTheme = false;
+try { explicitTheme = ['dark', 'light'].includes(localStorage.getItem('theme')); } catch {}
 
 const syncThemeControl = () => {
   const isDark = root.dataset.theme === 'dark';
@@ -18,8 +18,13 @@ syncThemeControl();
 themeToggle?.addEventListener('click', () => {
   const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
   root.dataset.theme = next;
-  localStorage.setItem('theme', next);
+  explicitTheme = true;
+  try { localStorage.setItem('theme', next); } catch {}
   syncThemeControl();
+});
+
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+  if (!explicitTheme) { root.dataset.theme = event.matches ? 'dark' : 'light'; syncThemeControl(); }
 });
 
 for (const carousel of document.querySelectorAll('[data-daily-stories]')) {

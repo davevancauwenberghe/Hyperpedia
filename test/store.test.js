@@ -33,3 +33,27 @@ test('legacy embedded read counts are migrated into durable read metrics', () =>
   assert.equal(metrics.posts['post-1'].read_count, 43);
   assert.equal(store.allPosts()[0].read_count, undefined);
 });
+
+test('editing a legacy post preserves embedded read counts before stripping old fields', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hyperpedia-'));
+  process.env.DATA_DIR = dir;
+  delete require.cache[require.resolve('../src/store')];
+  const store = require('../src/store');
+  fs.writeFileSync(path.join(dir, 'hyper-posts.json'), JSON.stringify({ posts: [{ id: 'one', title: 'Old', body: 'Text', read_count: 42 }] }));
+  const posts = store.allPosts();
+  posts[0].title = 'Edited';
+  store.savePosts(posts);
+  assert.equal(store.getStats().readCount, 42);
+});
+
+test('corrupt archive fails closed instead of silently overwriting stories', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hyperpedia-'));
+  process.env.DATA_DIR = dir;
+  delete require.cache[require.resolve('../src/store')];
+  const store = require('../src/store');
+  const file = path.join(dir, 'hyperpedia-posts.json');
+  fs.writeFileSync(file, '{broken');
+  assert.throws(() => store.allPosts());
+  assert.throws(() => store.savePosts([]));
+  assert.equal(fs.readFileSync(file, 'utf8'), '{broken');
+});
