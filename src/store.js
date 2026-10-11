@@ -11,7 +11,10 @@ const legacyAdminPath = path.join(dataDir, 'hyper-admin.json');
 const readMetricsPath = path.join(dataDir, 'hyperpedia-read-metrics.json');
 
 function readJson(file, fallback) {
-  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; }
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (error) {
+    if (error.code === 'ENOENT') return fallback;
+    throw error; // Never replace an unreadable/corrupt archive with an empty store.
+  }
 }
 function writeJson(file, value) {
   const tmp = `${file}.${process.pid}.tmp`;
@@ -27,7 +30,11 @@ function normalizePost(post) {
   return { ...content, replies: content.replies || [] };
 }
 function allPosts() { return readJsonWithLegacy(storePath, legacyStorePath, { posts: [] }).posts.map(normalizePost); }
-function savePosts(posts) { writeJson(storePath, { posts: posts.map(normalizePost) }); }
+function savePosts(posts) {
+  const previous = readJsonWithLegacy(storePath, legacyStorePath, { posts: [] }).posts;
+  migrateEmbeddedReadCounts(previous, getReadMetrics());
+  writeJson(storePath, { posts: posts.map(normalizePost) });
+}
 function getReadMetrics() {
   const stored = readJson(readMetricsPath, { posts: {} });
   return stored && typeof stored.posts === 'object' && stored.posts ? stored : { posts: {} };
