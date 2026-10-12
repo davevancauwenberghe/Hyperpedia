@@ -27,6 +27,15 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', eve
   if (!explicitTheme) { root.dataset.theme = event.matches ? 'dark' : 'light'; syncThemeControl(); }
 });
 
+for (const control of document.querySelectorAll('select[data-reading-size]')) {
+  control.value = root.dataset.readingSize || 'normal';
+  control.addEventListener('change', () => {
+    if (!['normal', 'large', 'extra'].includes(control.value)) return;
+    root.dataset.readingSize = control.value;
+    try { localStorage.setItem('reading-size', control.value); } catch {}
+  });
+}
+
 for (const carousel of document.querySelectorAll('[data-daily-stories]')) {
   const slides = [...carousel.querySelectorAll('.daily-story-slide')];
   const dots = [...carousel.querySelectorAll('.daily-story-dot')];

@@ -432,7 +432,7 @@ test('homepage combines the calm hero with manually controlled stories of the da
     assert.match(html, /class="daily-stories"/);
     assert.match(html, /data-daily-stories/);
     assert.match(html, /Herkenning voor onrustige momenten/);
-    assert.match(html, /Rustig lezen, zonder account/);
+    assert.doesNotMatch(html, /Rustig lezen, zonder account|calm-note|Je hoeft niets te plaatsen/);
     assert.doesNotMatch(html, /wisselen automatisch/);
     const dailySection = html.match(/<section class="daily-stories"[\s\S]*?<section class="toolbar"/)[0];
     assert.equal((dailySection.match(/class="daily-story-slide/g) || []).length, 4);
@@ -615,5 +615,40 @@ test('SEO assets, request safety, sessions and canonical routes remain consisten
     await fetch(`${base}/logout`, { method: 'POST', headers: { cookie }, redirect: 'manual' });
     assert.equal((await fetch(`${base}/admin`, { headers: { cookie }, redirect: 'manual' })).status, 302);
     assert.equal((await fetch(base)).status, 200);
+  } finally { await new Promise(resolve => server.close(resolve)); }
+});
+
+test('story sidebar suggests other matching topics and the shared editor preserves content', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hyperpedia-'));
+  process.env.DATA_DIR = dir;
+  process.env.SESSION_SECRET = 'x'.repeat(32);
+  delete require.cache[require.resolve('../src/store')];
+  delete require.cache[require.resolve('../src/server')];
+  const store = require('../src/store');
+  store.saveAdmin('admin', 'test-password');
+  store.savePosts([
+    { id: 'current', title: 'Mijn verhaal', author: 'Naam', body: 'Bestaande tekst', labels: ['ademhaling'] },
+    { id: 'related', title: '<Herkenning>', author: 'Een naam', body: 'Andere tekst', labels: ['ademhaling'] },
+    { id: 'unrelated', title: 'Ander onderwerp', author: 'Naam', body: 'Tekst', labels: ['slapen'] },
+  ]);
+  const { server } = require('../src/server');
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const html = await (await fetch(`${base}/posts/current`)).text();
+    const sidebar = html.match(/<aside class="story-sidebar"[\s\S]*?<\/aside>/)[0];
+    assert.match(sidebar, /href="\/posts\/related"/);
+    assert.match(sidebar, /&lt;Herkenning&gt;/);
+    assert.doesNotMatch(sidebar, /posts\/current|posts\/unrelated/);
+    assert.match(html, /data-reading-size/);
+    const login = await fetch(`${base}/login`, { method: 'POST', body: new URLSearchParams({ username: 'admin', password: 'test-password' }), redirect: 'manual' });
+    const cookie = login.headers.get('set-cookie').split(';')[0];
+    const editor = await (await fetch(`${base}/admin/edit/current`, { headers: { cookie } })).text();
+    assert.match(editor, /action="\/admin\/edit\/current"/);
+    assert.match(editor, /name="title" value="Mijn verhaal"/);
+    assert.match(editor, /name="body"[^>]*>Bestaande tekst<\/textarea>/);
+    const dashboard = await (await fetch(`${base}/admin`, { headers: { cookie } })).text();
+    assert.match(dashboard, /class="admin-workspace"/);
+    assert.match(dashboard, /action="\/admin\/posts"/);
   } finally { await new Promise(resolve => server.close(resolve)); }
 });
