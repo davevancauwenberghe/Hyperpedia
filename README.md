@@ -98,6 +98,16 @@ Zoeken negeert hoofdletters en accenten en zoekt alle ingevoerde woorden, ook in
 
 Bewerkformulieren bevatten een revisiecontrole: als een ander tabblad het verhaal intussen heeft veranderd, blijft jouw invoer beschikbaar en vraagt de pagina je de laatste versie te openen. HTTP-formulierclients die geen revisie meesturen behouden hun bestaande gedrag. De opslag valideert records vóór schrijven, houdt geïsoleerde caches bij en detecteert vervanging van JSON-bestanden op schijf.
 
+### Persoonlijke leesplek en leesroutes (v0.6.0)
+
+**Bewaren** voegt een verhaal toe aan **Mijn leeslijst** (`/leeslijst`). Bewaarde verhalen en leesposities staan uitsluitend in de lokale browseropslag; hiervoor is geen account nodig en deze gegevens worden niet naar de server gestuurd. De lijst ondersteunt maximaal 300 verhalen en bewaart de laatste 60 leesposities. De lezer kan individuele verhalen verwijderen of de lijst en voortgang samen wissen. Een browser die opslag blokkeert krijgt een melding dat wijzigingen alleen op de huidige pagina beschikbaar blijven.
+
+**Verder lezen** herstelt een positie op basis van de tekstalinea, zodat een andere schermbreedte niet zomaar een verkeerde pixelpositie oplevert. Focusmodus verbergt omliggende navigatie en de zijbalk; de knop **Focus verlaten** of Escape brengt deze terug. De lezer kan de voortgangsbalk uitschakelen. De oorspronkelijke tekst en reacties blijven server-gerenderd en ook zonder JavaScript bereikbaar.
+
+`/leesroutes` biedt korte routes door bestaande thema's. Zonder handmatige selectie worden maximaal zes themaroutes getoond voor thema's met minstens drie verhalen. Via `/admin/leesroutes` kun je drie tot vijf verhalen kiezen en ordenen of een eigen route toevoegen. De handmatige keuzes staan in `/data/hyperpedia-reading-paths.json` en zijn opgenomen als `readingPaths` in de archiefexport. Neem dit bestand ook mee in volumeback-ups. Verwijderde verhalen verdwijnen uit de publieke selectie; een onleesbaar selectiebestand wordt niet overschreven en publieke routes vallen terug op de thema's.
+
+Bronvermeldingspagina's (`/bronvermelding/...`) geven `author.url` een werkende bestemming voor verhalen en reacties. Ze tonen de naam bij één archiefbijdrage en zijn geen accounts of geverifieerde biografieën. Dezelfde naam op verschillende bijdragen wordt niet automatisch als dezelfde persoon behandeld. Deze contextpagina's zijn `noindex, follow`; openbare leesroutes worden wel in de sitemap opgenomen. De algemene social preview blijft in Open Graph/Twitter-metadata en wordt niet als inhoudelijke verhaalafbeelding opgegeven.
+
 ### Browsercontroles
 
 De ontwikkeldependency Playwright draait afzonderlijke regressiecontroles voor paginering, resizing, terugnavigatie, delen/kopiëren, afdrukken, voorkeuren, het informatiedialoogvenster en mislukte netwerkverzoeken. De fixturegegevens staan in een tijdelijke map en gebruiken je echte archief niet.

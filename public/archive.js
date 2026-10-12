@@ -125,6 +125,7 @@
       section().replaceWith(document.importNode(replacement, true));
       grid = document.querySelector('[data-post-grid]');
       if (pagination) section().after(document.importNode(pagination, true));
+      document.dispatchEvent(new CustomEvent('hyperpedia:archive-updated'));
       const finalUrl = new URL(response.url);
       if (navigation)
         history.pushState(null, '', finalUrl.pathname + finalUrl.search);

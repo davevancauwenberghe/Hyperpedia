@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.6.0 — 2026-10-12
+
+### Personal reading
+
+- Save stories to a private reading list on the current device and remove them individually or clear the list and reading progress.
+- Resume unfinished stories from the homepage or reading list, restoring the paragraph position across screen sizes.
+- Add focus mode, section navigation and an optional reading-progress indicator. Focus and progress-display preferences persist locally.
+- Add themed reading paths with a clear sequence and ending. Administrators can select and order three to five stories with stale-edit protection.
+- Keep bookmarks consistent through responsive pagination and browser tabs, handle deleted stories, and degrade gracefully when local storage or JavaScript is unavailable.
+- Add subtle control/card transitions and disable new animation when reduced motion is requested.
+
+### Structured data and maintenance
+
+- Give story and reply authors working, contribution-specific attribution URLs with clear archive context; matching display names are never merged into inferred identities.
+- Keep social preview images in sharing metadata and remove the generic preview from forum-post structured data.
+- Include public reading paths in the sitemap; private reading-list views and attribution pages remain outside it.
+- Export curated path definitions with the archive and preserve corrupt selection files rather than overwriting them. Public theme routes remain usable when selections are unreadable.
+- Add server and browser regressions covering author links, path editing, private storage, resume/focus controls, reduced motion, and mobile/desktop layouts.
+
 ## 0.5.1 — 2026-10-12
 
 - Read the bounded login request body before acquiring a password-verification slot, preventing unfinished uploads from blocking administrator login.
