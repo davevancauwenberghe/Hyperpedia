@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { isoDate: toIsoDate, sitemapDocuments } = require('./seo');
+const ASSET_VERSION = '20261012';
 const SESSION_TTL = 7 * 24 * 60 * 60 * 1000;
 const { allPosts, savePosts, recordPostRead, purgePostRead, getStats, getAdmin, verifyPassword } = require('./store');
 const sessionSecret = getSessionSecret();
@@ -41,7 +42,7 @@ const layout = (title, content, { admin = false, error = '', notice = '', descri
   <meta name="description" content="${metaDescription}">
   <meta name="theme-color" content="#f7f1e8">
   <meta name="color-scheme" content="light dark">
-  <script src="/theme.js"></script>
+  <script src="/theme.js?v=${ASSET_VERSION}"></script>
   <link rel="icon" href="/favicon.ico" sizes="any">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180">
@@ -68,15 +69,15 @@ const layout = (title, content, { admin = false, error = '', notice = '', descri
   ${post ? [['published_time', toIsoDate(post.created_at)], ['modified_time', toIsoDate(post.updated_at)]].filter(([, value]) => value).map(([key, value]) => `<meta property="article:${key}" content="${value}">`).join('\n') : ''}
   <meta name="twitter:card" content="summary_large_image">
   <title>${safeTitle}</title>
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/style.css?v=${ASSET_VERSION}">
   ${structuredData ? `<script type="application/ld+json">${JSON.stringify(structuredData).replace(/</g, '\\u003c')}</script>` : ''}
 </head>
 <body>
   <a class="skip-link" href="#main-content">Ga naar de inhoud</a>
   <header class="site-header">
-    <a class="brand" href="/"><span>Hyperpedia</span><small>verhalen die geruststellen</small></a>
+    <a class="brand" href="/"><img class="brand-mark" src="/favicon.svg" width="44" height="44" alt=""><span class="brand-copy"><span class="brand-title">Hyperpedia</span><small>verhalen die geruststellen</small></span></a>
     <nav aria-label="Hoofdnavigatie">
-      ${admin ? '<a href="/admin">Beheer</a><form method="post" action="/logout"><button>Uitloggen</button></form>' : '<a class="nav-button" href="/login" rel="nofollow">Beheer</a>'}
+      ${admin ? '<a class="nav-button" href="/admin">Beheer</a><form method="post" action="/logout"><button>Uitloggen</button></form>' : '<a class="nav-button" href="/login" rel="nofollow">Beheer</a>'}
       <button class="theme-toggle" type="button" aria-label="Donker thema gebruiken" aria-pressed="false"><span aria-hidden="true" data-theme-icon>☾</span></button>
     </nav>
   </header>
@@ -96,7 +97,7 @@ const layout = (title, content, { admin = false, error = '', notice = '', descri
       <div class="info-dialog-actions"><button type="button" data-info-close>Ik begrijp het</button></div>
     </div>
   </dialog>
-  <script src="/app.js"></script>
+  <script src="/app.js?v=${ASSET_VERSION}"></script>
 </body>
 </html>`;
 };
@@ -292,13 +293,28 @@ function renderReplies(post, { admin = false } = {}) {
   return `<section class="replies" aria-labelledby="replies-title"><h2 id="replies-title">Reacties</h2>${replies.map(reply => `<article class="reply"><p class="eyebrow">Reactie op ${escapeHtml(reply.originalReplier || post.author)}</p><h3>${escapeHtml(reply.author || 'Beheerder')}</h3><div>${escapeHtml(reply.body).replace(/\n/g, '<br>')}</div>${admin ? `<div class="reply-actions"><a class="button secondary" href="/admin/reply/${encodeURIComponent(post.id)}/${encodeURIComponent(reply.id)}/edit">Reactie bewerken</a><form method="post" action="/admin/reply/${encodeURIComponent(post.id)}/${encodeURIComponent(reply.id)}/delete"><button class="danger" type="submit">Reactie verwijderen</button></form></div>` : ''}</article>`).join('')}</section>`;
 }
 
+function storySidebar(post) {
+  const labels = new Set(post.labels || []);
+  const related = allPosts().filter(item => item.id !== post.id)
+    .map(item => ({ item, overlap: (item.labels || []).filter(label => labels.has(label)).length }))
+    .filter(({ overlap }) => overlap > 0)
+    .sort((a, b) => b.overlap - a.overlap || a.item.title.localeCompare(b.item.title, 'nl'))
+    .slice(0, 3).map(({ item }) => item);
+  return `<aside class="story-sidebar" aria-label="Verder in het archief">${labels.size ? `<section class="sidebar-panel"><p class="eyebrow">In dit verhaal</p><h2>Thema's</h2><div class="labels">${[...labels].map(label => `<a class="label" href="/?label=${encodeURIComponent(label)}">${escapeHtml(label)}</a>`).join('')}</div></section>` : ''}${related.length ? `<section class="sidebar-panel related-stories"><p class="eyebrow">Verder lezen</p><h2>Misschien herken je dit ook</h2>${related.map(item => `<a class="related-story" href="/posts/${encodeURIComponent(item.id)}"><span>${escapeHtml(item.title)}</span><small>${escapeHtml(item.author)}</small><span aria-hidden="true" class="related-arrow">↗</span></a>`).join('')}</section>` : ''}<a class="sidebar-back" href="/">Bekijk alle verhalen <span aria-hidden="true">→</span></a></aside>`;
+}
+
+function adminPostForm(post = null) {
+  const editing = Boolean(post);
+  return `<section class="panel admin-form-panel"><${editing ? 'h1' : 'h2'}>${editing ? 'Verhaal bewerken' : 'Nieuw verhaal toevoegen'}</${editing ? 'h1' : 'h2'}><form method="post" action="${editing ? `/admin/edit/${encodeURIComponent(post.id)}` : '/admin/posts'}" class="stack editor-grid"><label class="field-wide">Titel<input name="title" value="${escapeHtml(post?.title || '')}" maxlength="300" required></label><label>Naam oorspronkelijke auteur<input name="author" value="${escapeHtml(post?.author || '')}" maxlength="200" required></label><label><span>Labels <small>komma-gescheiden</small></span><input name="labels" value="${escapeHtml((post?.labels || []).join(', '))}" placeholder="ademhaling, duizeligheid, geruststelling" maxlength="2000"></label><label class="field-wide">Forumtekst<textarea name="body" rows="14" required>${escapeHtml(post?.body || '')}</textarea></label><div class="form-actions field-wide"><button>${editing ? 'Bijwerken' : 'Opslaan'}</button>${editing ? `<a class="button secondary" href="/posts/${encodeURIComponent(post.id)}">Annuleren</a>` : ''}</div></form></section>`;
+}
+
 function formatNumber(value) { return new Intl.NumberFormat('nl-NL').format(value); }
 function adminDashboard() {
   const stats = getStats();
   const topReadCount = Math.max(1, ...stats.postReads.map(post => post.read_count));
   const topReadPosts = stats.postReads.slice(0, 5);
   const readRows = topReadPosts.map(post => `<li><div><a href="/posts/${encodeURIComponent(post.id)}">${escapeHtml(post.title)}</a></div><meter min="0" max="${topReadCount}" value="${post.read_count}"></meter><strong>${formatNumber(post.read_count)}</strong><form method="post" action="/admin/read-metrics/${encodeURIComponent(post.id)}/purge"><button class="danger" type="submit">Purge</button></form></li>`).join('');
-  return `<section class="admin-overview"><div><p class="eyebrow">Beheerder portal</p><h1>Overzicht</h1><p>Volg in één oogopslag hoeveel verhalen zijn ingevoerd, gelezen en beantwoord.</p></div><div class="stats-grid"><article><span>${formatNumber(stats.readCount)}</span><p>Gelezen posts</p></article><article><span>${formatNumber(stats.postCount)}</span><p>Ingevoerde posts</p></article><article><span>${formatNumber(stats.replyCount)}</span><p>Reacties</p></article></div></section><section class="panel metrics-panel"><div class="section-heading"><p class="eyebrow">Leesstatistieken</p><h2>Reads per post</h2><p>Een handig overzicht van welke vijf verhalen het vaakst zijn geopend.</p></div><ol class="read-metrics">${readRows || '<li class="empty">Nog geen verhalen om te meten.</li>'}</ol></section>`;
+  return `<section class="admin-overview"><div><p class="eyebrow">Beheerder portal</p><h1>Overzicht</h1><p>Volg in één oogopslag hoeveel verhalen zijn ingevoerd, gelezen en beantwoord.</p></div><div class="stats-grid"><article><span>${formatNumber(stats.readCount)}</span><p>Gelezen posts</p></article><article><span>${formatNumber(stats.postCount)}</span><p>Ingevoerde posts</p></article><article><span>${formatNumber(stats.replyCount)}</span><p>Reacties</p></article></div></section><div class="admin-workspace"><section class="panel metrics-panel"><div class="section-heading"><p class="eyebrow">Leesstatistieken</p><h2>Reads per post</h2><p>Een handig overzicht van welke vijf verhalen het vaakst zijn geopend.</p></div><ol class="read-metrics">${readRows || '<li class="empty">Nog geen verhalen om te meten.</li>'}</ol></section>${adminPostForm()}</div>`;
 }
 function adminReplyForm(post) {
   return `<section class="panel reply-panel"><h2>Reactie toevoegen</h2><form method="post" action="/admin/reply/${encodeURIComponent(post.id)}" class="stack"><label>Naam originele replier<input name="originalReplier" value="${escapeHtml(post.author)}" required></label><label>Naam beheerder<input name="author" value="Beheerder" required></label><label>Reactie<textarea name="body" rows="6" required placeholder="Schrijf hier je reactie…"></textarea></label><button>Reactie opslaan</button></form></section>`;
@@ -373,7 +389,7 @@ async function handler(req, res) {
     const pageTitle = `${q ? `Zoeken naar ${q}` : label ? `Verhalen over ${label}` : 'Ervaringen over hyperventilatie en overprikkeling'}${page > 1 ? ` – pagina ${page}` : ''}`;
     const description = label ? `Lees herkenbare ervaringen over ${label}, stress, ademhaling en lichamelijke sensaties op Hyperpedia.` : undefined;
     const labels = allLabels.map(l => { const selected = l === label; return `<a class="label${selected ? ' selected' : ''}" href="${selected ? pageUrl({ q }) : pageUrl({ q, label: l })}"${selected ? ' aria-current="true"' : ''}>${escapeHtml(l)}</a>`; }).join('');
-    const content = `<section class="hero home-hero"><div class="hero-copy"><p class="eyebrow">Een rustig leesarchief</p><h1>Herkenning voor onrustige momenten</h1><p>Lees op je eigen tempo ervaringen over stress, ademhaling en vreemde lichamelijke sensaties. Soms helpt het al om te merken dat je niet de enige bent.</p><div class="calm-note"><strong>Rustig lezen, zonder account</strong><span>Je hoeft niets te plaatsen of bij te houden. Kies alleen wat op dit moment prettig voelt.</span></div></div><section class="daily-stories" aria-labelledby="daily-stories-title"><div class="section-heading"><p class="eyebrow">Een verhaal voor vandaag</p><h2 id="daily-stories-title">Misschien herken je iets</h2></div>${renderStoriesOfTheDay(dailyStories)}</section></section><section class="toolbar" aria-labelledby="find-stories-title"><div class="section-heading"><p class="eyebrow">Vind herkenning</p><h2 id="find-stories-title">Waar wil je over lezen?</h2></div><form class="search-form" role="search">${label ? `<input type="hidden" name="label" value="${escapeHtml(label)}">` : ''}<label for="story-search">Zoek in alle verhalen en reacties</label><div class="search-controls"><input id="story-search" name="q" value="${escapeHtml(q)}" placeholder="Bijvoorbeeld tintelingen, benauwdheid of duizeligheid"><button>Zoeken</button></div></form><div class="filter-heading"><strong>Thema's</strong>${label ? `<a href="${escapeHtml(pageUrl({ q }))}">Wis selectie</a>` : ''}</div><div class="labels">${labels}</div></section><section class="stories-index" aria-labelledby="stories-title"><div class="section-heading stories-heading"><div><p class="eyebrow">Ervaringen uit het archief</p><h2 id="stories-title">${resultTitle}</h2></div><p>${formatNumber(totalPosts)} ${totalPosts === 1 ? 'verhaal' : 'verhalen'}</p></div><div class="grid" data-post-grid>${visiblePosts.length ? visiblePosts.map(postCard).join('') : '<p class="empty">Hier zijn nog geen verhalen voor gevonden. Probeer een ander woord of thema.</p>'}</div></section>${pagination}${burnoutInsightCta()}`;
+    const content = `<section class="hero home-hero"><div class="hero-copy"><p class="eyebrow">Een rustig leesarchief</p><h1>Herkenning voor onrustige momenten</h1><p>Lees op je eigen tempo ervaringen over stress, ademhaling en vreemde lichamelijke sensaties. Soms helpt het al om te merken dat je niet de enige bent.</p><a class="hero-link" href="#find-stories-title">Ontdek het archief <span aria-hidden="true">↗</span></a></div><section class="daily-stories" aria-labelledby="daily-stories-title"><div class="section-heading"><p class="eyebrow">Een verhaal voor vandaag</p><h2 id="daily-stories-title">Misschien herken je iets</h2></div>${renderStoriesOfTheDay(dailyStories)}</section></section><section class="toolbar" aria-labelledby="find-stories-title"><div class="section-heading"><p class="eyebrow">Vind herkenning</p><h2 id="find-stories-title">Waar wil je over lezen?</h2></div><form class="search-form" role="search">${label ? `<input type="hidden" name="label" value="${escapeHtml(label)}">` : ''}<label for="story-search">Zoek in alle verhalen en reacties</label><div class="search-controls"><input id="story-search" name="q" value="${escapeHtml(q)}" placeholder="Bijvoorbeeld tintelingen, benauwdheid of duizeligheid"><button>Zoeken</button></div></form><div class="filter-heading"><strong>Thema's</strong>${label ? `<a href="${escapeHtml(pageUrl({ q }))}">Wis selectie</a>` : ''}</div><div class="labels">${labels}</div></section><section class="stories-index" aria-labelledby="stories-title"><div class="section-heading stories-heading"><div><p class="eyebrow">Ervaringen uit het archief</p><h2 id="stories-title">${resultTitle}</h2></div><p>${formatNumber(totalPosts)} ${totalPosts === 1 ? 'verhaal' : 'verhalen'}</p></div><div class="grid" data-post-grid>${visiblePosts.length ? visiblePosts.map(postCard).join('') : '<p class="empty">Hier zijn nog geen verhalen voor gevonden. Probeer een ander woord of thema.</p>'}</div></section>${pagination}${burnoutInsightCta()}`;
     return send(res, layout(pageTitle, content, { admin: isAdmin(req), description, canonicalPath: homepageCanonicalPath({ q, label, page }), siteUrl: getSiteUrl(req), robots: q || !totalPosts ? 'noindex, follow' : 'index, follow', structuredData: homepageStructuredData(visiblePosts, req) }));
   }
   if (method === 'POST' && /^\/posts\/[^/]+\/read$/.test(pathname)) {
@@ -386,7 +402,8 @@ async function handler(req, res) {
     if (pathname.endsWith('/')) return redirect(res, pathname.slice(0, -1), 308);
     const id = decodeURIComponent(pathname.split('/').pop()); const post = allPosts().find(item => item.id === id);
     if (!post) return send(res, layout('Niet gevonden', '<p class="empty">Dit verhaal bestaat niet.</p>', { admin: isAdmin(req), canonicalPath: pathname, siteUrl: getSiteUrl(req), robots: 'noindex, follow' }), 404);
-    return send(res, layout(post.title, `${isAdmin(req) ? '<article class="story">' : `<article class="story" data-post-id="${escapeHtml(post.id)}">`}<a class="back-link" href="/">← Terug naar alle verhalen</a><p class="eyebrow story-author">${escapeHtml(post.author)}</p><h1>${escapeHtml(post.title)}</h1><div class="labels">${(post.labels||[]).map(l=>`<a class="label" href="/?label=${encodeURIComponent(l)}">${escapeHtml(l)}</a>`).join('')}</div><div class="body">${escapeHtml(post.body).replace(/\n/g, '<br>')}</div>${renderReplies(post, { admin: isAdmin(req) })}${isAdmin(req) ? `<p><a class="button" href="/admin/edit/${encodeURIComponent(post.id)}">Bewerken</a></p>${adminReplyForm(post)}` : ''}</article>`, { admin: isAdmin(req), description: toSeoDescription(post.body, post.title), canonicalPath: `/posts/${encodeURIComponent(post.id)}`, type: 'article', siteUrl: getSiteUrl(req), structuredData: postStructuredData(post, req), post }));
+    const content = `<div class="story-layout"><article class="story"${isAdmin(req) ? '' : ` data-post-id="${escapeHtml(post.id)}"`}><header class="story-heading"><a class="back-link" href="/">← Terug naar alle verhalen</a><p class="eyebrow story-author">${escapeHtml(post.author)}</p><h1>${escapeHtml(post.title)}</h1><div class="reader-settings"><label for="reading-size">Tekstgrootte</label><select id="reading-size" data-reading-size><option value="normal">Standaard</option><option value="large">Groter</option><option value="extra">Extra groot</option></select></div></header><div class="story-content${(post.replies || []).length ? ' has-replies' : ''}"><div class="body">${escapeHtml(post.body).replace(/\n/g, '<br>')}</div>${renderReplies(post, { admin: isAdmin(req) })}</div>${isAdmin(req) ? `<p><a class="button" href="/admin/edit/${encodeURIComponent(post.id)}">Bewerken</a></p>${adminReplyForm(post)}` : ''}</article>${storySidebar(post)}</div>`;
+    return send(res, layout(post.title, content, { admin: isAdmin(req), description: toSeoDescription(post.body, post.title), canonicalPath: `/posts/${encodeURIComponent(post.id)}`, type: 'article', siteUrl: getSiteUrl(req), structuredData: postStructuredData(post, req), post }));
   }
 
   if (method === 'POST' && pathname.startsWith('/admin/read-metrics/') && pathname.endsWith('/purge')) {
@@ -419,7 +436,7 @@ async function handler(req, res) {
     const sid = crypto.randomBytes(32).toString('hex'); sessions.set(sid, Date.now() + SESSION_TTL); res.writeHead(302, { Location: '/admin', 'Set-Cookie': `hyperpedia_session=${sid}.${sign(sid)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800${process.env.NODE_ENV === 'production' ? '; Secure' : ''}` }); return res.end();
   }
   if (method === 'POST' && pathname === '/logout') { sessions.delete(req.sessionId); res.writeHead(302, { Location: '/', 'Set-Cookie': 'hyperpedia_session=; Path=/; Max-Age=0' }); return res.end(); }
-  if (method === 'GET' && pathname === '/admin') { if (requireAdmin(req,res)) return; return send(res, layout('Beheer', `${adminDashboard()}<section class="panel admin-form-panel"><h1>Nieuw verhaal toevoegen</h1><form method="post" action="/admin/posts" class="stack"><label>Titel<input name="title" required></label><label>Naam oorspronkelijke auteur<input name="author" required></label><label>Labels <small>komma-gescheiden</small><input name="labels" placeholder="ademhaling, duizeligheid, geruststelling"></label><label>Forumtekst<textarea name="body" rows="14" required></textarea></label><button>Opslaan</button></form></section>`, { admin: true, robots: 'noindex, nofollow' })); }
+  if (method === 'GET' && pathname === '/admin') { if (requireAdmin(req,res)) return; return send(res, layout('Beheer', adminDashboard(), { admin: true, robots: 'noindex, nofollow' })); }
   if (method === 'POST' && pathname === '/admin/posts') { if (requireAdmin(req,res)) return; const body = await collect(req); const posts = allPosts(); const id = crypto.randomBytes(6).toString('base64url'); posts.push({ id, author: body.author, title: body.title, body: body.body, labels: parseLabels(body.labels), replies: [], created_at: new Date().toISOString(), updated_at: new Date().toISOString() }); savePosts(posts); return redirect(res, `/posts/${id}`); }
 
   if (method === 'GET' && pathname.startsWith('/admin/reply/') && pathname.endsWith('/edit')) {
@@ -457,7 +474,7 @@ async function handler(req, res) {
     return redirect(res, `/posts/${postId}`);
   }
   if (method === 'POST' && pathname.startsWith('/admin/reply/')) { if (requireAdmin(req,res)) return; const id = decodeURIComponent(pathname.split('/').pop()); const body = await collect(req); const posts = allPosts(); const p = posts.find(x=>x.id===id); if (!p) return send(res, 'Niet gevonden', 404); p.replies = p.replies || []; p.replies.push({ id: crypto.randomBytes(6).toString('base64url'), originalReplier: body.originalReplier, author: body.author, body: body.body, created_at: new Date().toISOString() }); p.updated_at = new Date().toISOString(); savePosts(posts); return redirect(res, `/posts/${id}`); }
-  if (method === 'GET' && pathname.startsWith('/admin/edit/')) { if (requireAdmin(req,res)) return; const id = decodeURIComponent(pathname.split('/').pop()); const p = allPosts().find(x=>x.id===id); if (!p) return send(res, 'Niet gevonden', 404); return send(res, layout('Bewerken', `<section class="panel"><h1>Verhaal bewerken</h1><form method="post" action="/admin/edit/${encodeURIComponent(p.id)}" class="stack"><label>Titel<input name="title" value="${escapeHtml(p.title)}" required></label><label>Naam oorspronkelijke auteur<input name="author" value="${escapeHtml(p.author)}" required></label><label>Labels<input name="labels" value="${escapeHtml((p.labels||[]).join(', '))}"></label><label>Forumtekst<textarea name="body" rows="14" required>${escapeHtml(p.body)}</textarea></label><button>Bijwerken</button></form></section>`, { admin: true, robots: 'noindex, nofollow' })); }
+  if (method === 'GET' && pathname.startsWith('/admin/edit/')) { if (requireAdmin(req,res)) return; const id = decodeURIComponent(pathname.split('/').pop()); const p = allPosts().find(x=>x.id===id); if (!p) return send(res, 'Niet gevonden', 404); return send(res, layout('Bewerken', adminPostForm(p), { admin: true, robots: 'noindex, nofollow' })); }
   if (method === 'POST' && pathname.startsWith('/admin/edit/')) { if (requireAdmin(req,res)) return; const id = decodeURIComponent(pathname.split('/').pop()); const body = await collect(req); const posts = allPosts(); const p = posts.find(x=>x.id===id); if (!p) return send(res, 'Niet gevonden', 404); Object.assign(p, { author: body.author, title: body.title, body: body.body, labels: parseLabels(body.labels), updated_at: new Date().toISOString() }); savePosts(posts); return redirect(res, `/posts/${id}`); }
   res.setHeader('X-Robots-Tag', 'noindex');
   send(res, layout('Niet gevonden', '<section class="panel"><h1>Pagina niet gevonden</h1><p>Deze pagina bestaat niet.</p><a href="/">Terug naar alle verhalen</a></section>', { siteUrl: getSiteUrl(req), robots: 'noindex, follow', canonicalPath: pathname }), 404);
