@@ -5,10 +5,14 @@ const crypto = require('node:crypto');
 const { isoDate: toIsoDate, sitemapDocuments } = require('./seo');
 const { version: APP_VERSION } = require('../package.json');
 const { icon } = require('./icons');
+const { escapeHtml } = require('./html');
+const { attributionPath, authorData, replyKey } = require('./reading');
+const readingUi = require('./reading-ui');
+const { createReadingPages, availablePaths } = require('./reading-pages');
 const { createAuth } = require('./auth');
 const { readForm, createLoginBodyReader } = require('./forms');
 const { searchPosts, storiesOfTheDay, pageSize } = require('./archive');
-const { allPosts, savePosts, recordPostRead, purgePostRead, getStats, getAdmin, verifyPasswordAsync } = require('./store');
+const { allPosts, savePosts, recordPostRead, purgePostRead, getStats, getAdmin, verifyPasswordAsync, getPathExport } = require('./store');
 const auth = createAuth();
 const readLoginBody = createLoginBodyReader();
 const POSTS_PER_PAGE = 18;
@@ -60,7 +64,7 @@ const layout = (title, content, { admin = false, error = '', notice = '', descri
   <a class="skip-link" href="#main-content">Ga naar de inhoud</a>
   <header class="site-header">
     <a class="brand" href="/"><img class="brand-mark" src="/favicon.svg" width="44" height="44" alt=""><span class="brand-copy"><span class="brand-title">Hyperpedia</span><small>verhalen die geruststellen</small></span></a>
-    <nav aria-label="Hoofdnavigatie">
+    <nav aria-label="Hoofdnavigatie"><a class="nav-button public-nav-link" href="/leesroutes">${icon('route')}<span>Leesroutes</span></a><a class="nav-button public-nav-link" href="/leeslijst">${icon('bookmark')}<span>Mijn leeslijst</span></a>
       ${admin ? '<a class="nav-button" href="/admin">Overzicht</a><form method="post" action="/logout"><button>Uitloggen</button></form>' : ''}
       <button class="theme-toggle" type="button" aria-label="Donker thema gebruiken" aria-pressed="false">${icon('moon')}${icon('sun')}</button>
     </nav>
@@ -70,6 +74,7 @@ const layout = (title, content, { admin = false, error = '', notice = '', descri
     ${notice ? `<p class="flash notice">${escapeHtml(notice)}</p>` : ''}
     ${content}
   </main>
+  <div class="reading-toast" data-reading-toast hidden><p role="status" data-global-reading-status></p><button class="secondary" type="button" data-reading-toast-close aria-label="Melding sluiten">${icon('close')}</button></div>
   <footer class="site-footer"><div class="footer-note"><strong>Goed om te weten</strong><p>De verhalen op Hyperpedia zijn persoonlijke ervaringen, geen medisch advies. Bespreek nieuwe, ernstige of aanhoudende klachten altijd met je zorgverlener.</p></div><div class="footer-actions"><button class="footer-info-link" type="button" data-info-open>Over dit archief</button><span class="site-version">v${APP_VERSION}</span></div></footer>
   <dialog class="info-dialog" aria-labelledby="info-dialog-title" data-info-dialog>
     <div class="info-dialog-card">
@@ -82,6 +87,7 @@ const layout = (title, content, { admin = false, error = '', notice = '', descri
     </div>
   </dialog>
   <script src="/app.js?v=${APP_VERSION}"></script>
+  <script src="/reading.js?v=${APP_VERSION}"></script>
   <script src="/archive.js?v=${APP_VERSION}"></script>
 </body>
 </html>`;
@@ -132,9 +138,6 @@ function renderStoriesOfTheDay(posts) {
   if (posts.length === 1) return `<div class="daily-story-frame"><div class="daily-story-track">${slides}</div></div>`;
   return `<div class="daily-story-frame" data-daily-stories><div class="daily-story-track" aria-live="polite">${slides}</div><div class="daily-story-controls"><button type="button" class="daily-story-arrow" data-daily-prev aria-label="Vorig verhaal">${icon('left')}</button><div class="daily-story-dots" aria-label="Verhalen van de dag navigatie">${dots}</div><button type="button" class="daily-story-arrow" data-daily-next aria-label="Volgend verhaal">${icon('right')}</button></div></div>`;
 }
-function personStructuredData(name) {
-  return { '@type': 'Person', name };
-}
 function homepageStructuredData(posts, req) {
   const siteUrl = getSiteUrl(req);
   return {
@@ -146,7 +149,7 @@ function homepageStructuredData(posts, req) {
     potentialAction: { '@type': 'SearchAction', target: `${siteUrl}?q={search_term_string}`, 'query-input': 'required name=search_term_string' },
     mainEntity: posts.slice(0, 12).map(post => {
       const url = new URL(`/posts/${encodeURIComponent(post.id)}`, siteUrl).toString();
-      return { '@type': 'DiscussionForumPosting', headline: post.title, datePublished: toIsoDate(post.created_at), author: personStructuredData(post.author), url };
+      return { '@type': 'DiscussionForumPosting', headline: post.title, datePublished: toIsoDate(post.created_at), author: authorData(post.author, attributionPath(post), siteUrl), url };
     }),
   };
 }
@@ -157,22 +160,18 @@ function postStructuredData(post, req) {
     '@type': 'DiscussionForumPosting',
     headline: post.title,
     text: post.body,
-    author: personStructuredData(post.author),
+    author: authorData(post.author, attributionPath(post), siteUrl),
     datePublished: toIsoDate(post.created_at),
     dateModified: toIsoDate(post.updated_at) || toIsoDate(post.created_at),
     inLanguage: 'nl',
     commentCount: (post.replies || []).length,
-    comment: (post.replies || []).map(reply => ({ '@type': 'Comment', text: reply.body, author: personStructuredData(reply.author || 'Beheerder'), datePublished: toIsoDate(reply.created_at), dateModified: toIsoDate(reply.updated_at) })),
-    image: new URL('/social-preview.png', siteUrl).href,
+    comment: (post.replies || []).map((reply, index) => ({ '@type': 'Comment', text: reply.body, author: authorData(reply.author || 'Beheerder', attributionPath(post, reply, index), siteUrl), datePublished: toIsoDate(reply.created_at), dateModified: toIsoDate(reply.updated_at) })),
     mainEntityOfPage: new URL(`/posts/${encodeURIComponent(post.id)}`, siteUrl).href,
     keywords: (post.labels || []).join(', '),
     url: new URL(`/posts/${encodeURIComponent(post.id)}`, siteUrl).toString(),
   };
 }
 
-function escapeHtml(value = '') {
-  return String(value).replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
-}
 function isAdmin(req) { return Boolean(req.admin); }
 function requireAdmin(req, res) { if (!isAdmin(req)) { redirect(res, '/login'); return true; } return false; }
 function redirect(res, to, code = 302) { res.writeHead(code, { Location: to }); res.end(); }
@@ -191,7 +190,7 @@ function parseLabels(value) { return [...new Set(String(value || '').split(',').
 function postCard(post, { backPath = '' } = {}) {
   const url = `/posts/${encodeURIComponent(post.id)}${backPath && backPath !== '/' ? `?from=${encodeURIComponent(backPath)}` : ''}`;
   const labels = post.labels || [];
-  return `<article class="card" data-story-id="${escapeHtml(post.id)}"><div class="card-top"><p class="eyebrow">${escapeHtml(post.author)}</p>${labels.map(l => `<a class="label" href="/?label=${encodeURIComponent(l)}">${escapeHtml(l)}</a>`).join('')}</div><h2><a href="${escapeHtml(url)}">${escapeHtml(post.title)}</a></h2><p>${escapeHtml(post.body.slice(0, 230))}${post.body.length > 230 ? '…' : ''}</p><div class="card-actions"><a class="button secondary" href="${escapeHtml(url)}" aria-label="Lees verder: ${escapeHtml(post.title)}">Lees verder</a>${(post.replies || []).length ? `<span class="reply-count">${post.replies.length} reactie${post.replies.length === 1 ? '' : 's'}</span>` : ''}</div></article>`;
+  return `<article class="card" data-story-id="${escapeHtml(post.id)}"><div class="card-top"><p class="eyebrow">${escapeHtml(post.author)}</p>${labels.map(l => `<a class="label" href="/?label=${encodeURIComponent(l)}">${escapeHtml(l)}</a>`).join('')}</div><h2><a href="${escapeHtml(url)}">${escapeHtml(post.title)}</a></h2><p>${escapeHtml(post.body.slice(0, 230))}${post.body.length > 230 ? '…' : ''}</p><div class="card-actions"><a class="button secondary" href="${escapeHtml(url)}" aria-label="Lees verder: ${escapeHtml(post.title)}">Lees verder</a>${readingUi.bookmarkButton(post)}${(post.replies || []).length ? `<span class="reply-count">${post.replies.length} reactie${post.replies.length === 1 ? '' : 's'}</span>` : ''}</div></article>`;
 }
 
 function pageUrl({ q = '', label = '', page = 1, perPage = POSTS_PER_PAGE } = {}) {
@@ -226,13 +225,13 @@ function loginPageOptions(req) {
   return { canonicalPath: '/login', siteUrl: getSiteUrl(req), robots: 'noindex, nofollow' };
 }
 function renderText(value) {
-  return String(value || '').replace(/\r\n/g, '\n').split(/\n\s*\n/).map(paragraph => `<p>${escapeHtml(paragraph).replace(/\n/g, '<br>')}</p>`).join('');
+  return String(value || '').replace(/\r\n/g, '\n').split(/\n\s*\n/).map(paragraph => `<p data-reading-block>${escapeHtml(paragraph).replace(/\n/g, '<br>')}</p>`).join('');
 }
 function renderReplies(post, { admin = false } = {}) {
   const replies = post.replies || [];
   if (!replies.length) return '';
 
-  return `<section class="replies" aria-labelledby="replies-title"><h2 id="replies-title">Reacties</h2>${replies.map(reply => `<article class="reply"><p class="eyebrow">Reactie op ${escapeHtml(reply.originalReplier || post.author)}</p><h3>${escapeHtml(reply.author || 'Beheerder')}</h3><div>${renderText(reply.body)}</div>${admin ? `<div class="reply-actions"><a class="button secondary" href="/admin/reply/${encodeURIComponent(post.id)}/${encodeURIComponent(reply.id)}/edit">Reactie bewerken</a><form method="post" action="/admin/reply/${encodeURIComponent(post.id)}/${encodeURIComponent(reply.id)}/delete"><button class="danger" type="submit">Reactie verwijderen</button></form></div>` : ''}</article>`).join('')}</section>`;
+  return `<section class="replies" aria-labelledby="replies-title"><h2 id="replies-title">Reacties</h2>${replies.map((reply, index) => `<article class="reply" id="reply-${escapeHtml(encodeURIComponent(replyKey(reply, index)))}"><p class="eyebrow">Reactie op ${escapeHtml(reply.originalReplier || post.author)}</p><h3><a class="author-link" href="${attributionPath(post, reply, index)}">${escapeHtml(reply.author || 'Beheerder')}</a></h3><div>${renderText(reply.body)}</div>${admin ? `<div class="reply-actions"><a class="button secondary" href="/admin/reply/${encodeURIComponent(post.id)}/${encodeURIComponent(reply.id)}/edit">Reactie bewerken</a><form method="post" action="/admin/reply/${encodeURIComponent(post.id)}/${encodeURIComponent(reply.id)}/delete"><button class="danger" type="submit">Reactie verwijderen</button></form></div>` : ''}</article>`).join('')}</section>`;
 }
 
 function storySidebar(post, archive) {
@@ -242,7 +241,7 @@ function storySidebar(post, archive) {
     .filter(({ overlap }) => overlap > 0)
     .sort((a, b) => b.overlap - a.overlap || a.item.title.localeCompare(b.item.title, 'nl'))
     .slice(0, 3).map(({ item }) => item);
-  return `<aside class="story-sidebar" aria-label="Verder in het archief">${labels.size ? `<section class="sidebar-panel"><p class="eyebrow">In dit verhaal</p><h2>Thema's</h2><div class="labels">${[...labels].map(label => `<a class="label" href="/?label=${encodeURIComponent(label)}">${escapeHtml(label)}</a>`).join('')}</div></section>` : ''}${related.length ? `<section class="sidebar-panel related-stories"><p class="eyebrow">Verder lezen</p><h2>Misschien herken je dit ook</h2>${related.map(item => `<a class="related-story" href="/posts/${encodeURIComponent(item.id)}"><span>${escapeHtml(item.title)}</span><small>${escapeHtml(item.author)}</small><span class="related-arrow">${icon('external')}</span></a>`).join('')}</section>` : ''}<a class="sidebar-back" href="/">Bekijk alle verhalen ${icon('right')}</a></aside>`;
+  return `<aside class="story-sidebar" id="related-stories" aria-label="Verder in het archief">${labels.size ? `<section class="sidebar-panel"><p class="eyebrow">In dit verhaal</p><h2>Thema's</h2><div class="labels">${[...labels].map(label => `<a class="label" href="/?label=${encodeURIComponent(label)}">${escapeHtml(label)}</a>`).join('')}</div></section>` : ''}${related.length ? `<section class="sidebar-panel related-stories"><p class="eyebrow">Verder lezen</p><h2>Misschien herken je dit ook</h2>${related.map(item => `<a class="related-story" href="/posts/${encodeURIComponent(item.id)}"><span>${escapeHtml(item.title)}</span><small>${escapeHtml(item.author)}</small><span class="related-arrow">${icon('external')}</span></a>`).join('')}</section>` : ''}<a class="sidebar-back" href="/">Bekijk alle verhalen ${icon('right')}</a></aside>`;
 }
 
 function adminPostForm(post = null) {
@@ -256,7 +255,7 @@ function adminDashboard() {
   const topReadCount = stats.postReads.reduce((max, post) => Math.max(max, post.read_count), 1);
   const topReadPosts = stats.postReads.slice(0, 5);
   const readRows = topReadPosts.map(post => `<li><div><a href="/posts/${encodeURIComponent(post.id)}">${escapeHtml(post.title)}</a></div><meter min="0" max="${topReadCount}" value="${post.read_count}"></meter><strong>${formatNumber(post.read_count)}</strong><form method="post" action="/admin/read-metrics/${encodeURIComponent(post.id)}/purge"><button class="danger" type="submit">Purge</button></form></li>`).join('');
-  return `<section class="admin-overview"><div><p class="eyebrow">Beheerder portal</p><h1>Overzicht</h1><p>Volg in één oogopslag hoeveel verhalen zijn ingevoerd, gelezen en beantwoord.</p><a class="button secondary" href="/admin/export">${icon('download')} Archief exporteren</a></div><div class="stats-grid"><article><span>${formatNumber(stats.readCount)}</span><p>Gelezen posts</p></article><article><span>${formatNumber(stats.postCount)}</span><p>Ingevoerde posts</p></article><article><span>${formatNumber(stats.replyCount)}</span><p>Reacties</p></article></div></section><div class="admin-workspace"><section class="panel metrics-panel"><div class="section-heading"><p class="eyebrow">Leesstatistieken</p><h2>Reads per post</h2><p>Een handig overzicht van welke vijf verhalen het vaakst zijn geopend.</p></div><ol class="read-metrics">${readRows || '<li class="empty">Nog geen verhalen om te meten.</li>'}</ol></section>${adminPostForm()}</div>`;
+  return `<section class="admin-overview"><div><p class="eyebrow">Beheerder portal</p><h1>Overzicht</h1><p>Volg in één oogopslag hoeveel verhalen zijn ingevoerd, gelezen en beantwoord.</p><a class="button secondary" href="/admin/export">${icon('download')} Archief exporteren</a><a class="button secondary" href="/admin/leesroutes">${icon('route')} Leesroutes beheren</a></div><div class="stats-grid"><article><span>${formatNumber(stats.readCount)}</span><p>Gelezen posts</p></article><article><span>${formatNumber(stats.postCount)}</span><p>Ingevoerde posts</p></article><article><span>${formatNumber(stats.replyCount)}</span><p>Reacties</p></article></div></section><div class="admin-workspace"><section class="panel metrics-panel"><div class="section-heading"><p class="eyebrow">Leesstatistieken</p><h2>Reads per post</h2><p>Een handig overzicht van welke vijf verhalen het vaakst zijn geopend.</p></div><ol class="read-metrics">${readRows || '<li class="empty">Nog geen verhalen om te meten.</li>'}</ol></section>${adminPostForm()}</div>`;
 }
 function adminReplyForm(post) {
   return `<section class="panel reply-panel"><h2>Reactie toevoegen</h2><form method="post" action="/admin/reply/${encodeURIComponent(post.id)}" class="stack"><label>Naam originele replier<input name="originalReplier" value="${escapeHtml(post.author)}" required></label><label>Naam beheerder<input name="author" value="Beheerder" required></label><label>Reactie<textarea name="body" rows="6" required placeholder="Schrijf hier je reactie…"></textarea></label><button>Reactie opslaan</button></form></section>`;
@@ -288,6 +287,8 @@ function storyActions(post, siteUrl) {
   return `<div class="story-actions" data-story-actions hidden><button class="secondary" type="button" data-story-share>${icon('share')} Delen</button><button class="secondary" type="button" data-story-copy>${icon('copy')} Link kopiëren</button><button class="secondary" type="button" data-story-print>${icon('print')} Afdrukken</button><input class="share-url" aria-label="Link naar dit verhaal" value="${escapeHtml(url)}" readonly data-share-url hidden><p class="action-feedback" role="status" aria-live="polite" data-action-status></p></div>`;
 }
 
+const handleReadingPages = createReadingPages({ layout, send, redirect, requireAdmin, getSiteUrl, isAdmin });
+
 async function handler(req, res) {
   withRequest(req);
   const method = req.method === 'HEAD' ? 'GET' : req.method;
@@ -307,15 +308,17 @@ async function handler(req, res) {
     return send(res, 'Dit formulier komt van een andere website.', 403);
   }
   if (!['GET', 'POST'].includes(method)) { res.setHeader('Allow', 'GET, HEAD, POST'); return send(res, 'Methode niet toegestaan', 405); }
-  const assets = { '/archive.js': 'application/javascript; charset=utf-8', '/style.css': 'text/css; charset=utf-8', '/app.js': 'application/javascript; charset=utf-8', '/theme.js': 'application/javascript; charset=utf-8', '/favicon.svg': 'image/svg+xml', '/favicon.ico': 'image/x-icon', '/favicon-48.png': 'image/png', '/apple-touch-icon.png': 'image/png', '/icon-192.png': 'image/png', '/icon-512.png': 'image/png', '/social-preview.png': 'image/png', '/social-preview.svg': 'image/svg+xml', '/site.webmanifest': 'application/manifest+json; charset=utf-8' };
+  const assets = { '/reading.js': 'application/javascript; charset=utf-8', '/archive.js': 'application/javascript; charset=utf-8', '/style.css': 'text/css; charset=utf-8', '/app.js': 'application/javascript; charset=utf-8', '/theme.js': 'application/javascript; charset=utf-8', '/favicon.svg': 'image/svg+xml', '/favicon.ico': 'image/x-icon', '/favicon-48.png': 'image/png', '/apple-touch-icon.png': 'image/png', '/icon-192.png': 'image/png', '/icon-512.png': 'image/png', '/social-preview.png': 'image/png', '/social-preview.svg': 'image/svg+xml', '/site.webmanifest': 'application/manifest+json; charset=utf-8' };
   if (assets[pathname]) {
     if (method !== 'GET') { res.setHeader('Allow', 'GET, HEAD'); return send(res, 'Methode niet toegestaan', 405); }
     if (!req.admin) res.setHeader('Cache-Control', 'public, max-age=3600');
     return send(res, fs.readFileSync(path.join(__dirname, '..', 'public', pathname.slice(1))), 200, assets[pathname]);
   }
+  if (await handleReadingPages(req, res, method)) return;
   if (method === 'GET' && pathname === '/robots.txt') return send(res, `User-agent: *\nAllow: /\nSitemap: ${new URL('/sitemap.xml', getSiteUrl(req)).toString()}\n`, 200, 'text/plain; charset=utf-8');
   if (method === 'GET' && (pathname === '/sitemap.xml' || /^\/sitemaps\/[1-9]\d*\.xml$/.test(pathname))) {
-    const sitemap = sitemapDocuments(allPosts(), getSiteUrl(req), POSTS_PER_PAGE);
+    const archive = allPosts();
+    const sitemap = sitemapDocuments(archive, getSiteUrl(req), POSTS_PER_PAGE, ['/leesroutes', ...availablePaths(archive).map(route => readingUi.pathUrl(route))]);
     const xml = pathname === '/sitemap.xml' ? sitemap.root : sitemap.documents[Number(pathname.match(/\d+/)[0]) - 1];
     return send(res, xml || 'Niet gevonden', xml ? 200 : 404, xml ? 'application/xml; charset=utf-8' : 'text/plain; charset=utf-8');
   }
@@ -345,7 +348,7 @@ async function handler(req, res) {
     const pageTitle = `${q ? `Zoeken naar ${q}` : label ? `Verhalen over ${label}` : 'Ervaringen over hyperventilatie en overprikkeling'}${page > 1 ? ` – pagina ${page}` : ''}`;
     const description = label ? `Lees herkenbare ervaringen over ${label}, stress, ademhaling en lichamelijke sensaties op Hyperpedia.` : undefined;
     const labels = allLabels.map(l => { const selected = l === label; return `<a class="label${selected ? ' selected' : ''}" href="${selected ? pageUrl({ q, perPage }) : pageUrl({ q, label: l, perPage })}"${selected ? ' aria-current="true"' : ''}>${escapeHtml(l)}</a>`; }).join('');
-    const content = `<section class="hero home-hero"><div class="hero-copy"><p class="eyebrow">Een rustig leesarchief</p><h1>Herkenning voor onrustige momenten</h1><p>Lees op je eigen tempo ervaringen over stress, ademhaling en vreemde lichamelijke sensaties. Soms helpt het al om te merken dat je niet de enige bent.</p><a class="hero-link" href="#find-stories-title">Ontdek het archief ${icon('external')}</a></div><section class="daily-stories" aria-labelledby="daily-stories-title"><div class="section-heading"><p class="eyebrow">Een verhaal voor vandaag</p><h2 id="daily-stories-title">Misschien herken je iets</h2></div>${renderStoriesOfTheDay(dailyStories)}</section></section><section class="toolbar" aria-labelledby="find-stories-title"><div class="section-heading"><p class="eyebrow">Vind herkenning</p><h2 id="find-stories-title">Waar wil je over lezen?</h2></div><form class="search-form" role="search">${perPage !== POSTS_PER_PAGE ? `<input type="hidden" name="perPage" value="${perPage}">` : ''}${label ? `<input type="hidden" name="label" value="${escapeHtml(label)}">` : ''}<label for="story-search">Zoek in alle verhalen en reacties</label><div class="search-controls"><input id="story-search" name="q" value="${escapeHtml(q)}" placeholder="Bijvoorbeeld tintelingen, benauwdheid of duizeligheid"><button>${icon('search')} Zoeken</button></div></form><div class="filter-heading"><strong>Thema's</strong>${label ? `<a href="${escapeHtml(pageUrl({ q, perPage }))}">Wis selectie</a>` : ''}</div><div class="labels">${labels}</div></section><section class="stories-index" aria-labelledby="stories-title"><div class="section-heading stories-heading"><div><p class="eyebrow">Ervaringen uit het archief</p><h2 id="stories-title">${resultTitle}</h2></div><p>${formatNumber(totalPosts)} ${totalPosts === 1 ? 'verhaal' : 'verhalen'}</p></div><div class="grid" data-post-grid data-page="${page}" data-per-page="${perPage}" data-total="${totalPosts}">${visiblePosts.length ? visiblePosts.map(post => postCard(post, { backPath: pageUrl({ q, label, page, perPage }) })).join('') : '<p class="empty">Hier zijn nog geen verhalen voor gevonden. Probeer een ander woord of thema.</p>'}</div></section>${pagination}${burnoutInsightCta()}`;
+    const content = `${readingUi.personalShelf()}<section class="hero home-hero"><div class="hero-copy"><p class="eyebrow">Een rustig leesarchief</p><h1>Herkenning voor onrustige momenten</h1><p>Lees op je eigen tempo ervaringen over stress, ademhaling en vreemde lichamelijke sensaties. Soms helpt het al om te merken dat je niet de enige bent.</p><a class="hero-link" href="#find-stories-title">Ontdek het archief ${icon('external')}</a></div><section class="daily-stories" aria-labelledby="daily-stories-title"><div class="section-heading"><p class="eyebrow">Een verhaal voor vandaag</p><h2 id="daily-stories-title">Misschien herken je iets</h2></div>${renderStoriesOfTheDay(dailyStories)}</section></section><section class="toolbar" aria-labelledby="find-stories-title"><div class="section-heading"><p class="eyebrow">Vind herkenning</p><h2 id="find-stories-title">Waar wil je over lezen?</h2></div><form class="search-form" role="search">${perPage !== POSTS_PER_PAGE ? `<input type="hidden" name="perPage" value="${perPage}">` : ''}${label ? `<input type="hidden" name="label" value="${escapeHtml(label)}">` : ''}<label for="story-search">Zoek in alle verhalen en reacties</label><div class="search-controls"><input id="story-search" name="q" value="${escapeHtml(q)}" placeholder="Bijvoorbeeld tintelingen, benauwdheid of duizeligheid"><button>${icon('search')} Zoeken</button></div></form><div class="filter-heading"><strong>Thema's</strong>${label ? `<a href="${escapeHtml(pageUrl({ q, perPage }))}">Wis selectie</a>` : ''}</div><div class="labels">${labels}</div></section><section class="stories-index" aria-labelledby="stories-title"><div class="section-heading stories-heading"><div><p class="eyebrow">Ervaringen uit het archief</p><h2 id="stories-title">${resultTitle}</h2></div><p>${formatNumber(totalPosts)} ${totalPosts === 1 ? 'verhaal' : 'verhalen'}</p></div><div class="grid" data-post-grid data-page="${page}" data-per-page="${perPage}" data-total="${totalPosts}">${visiblePosts.length ? visiblePosts.map(post => postCard(post, { backPath: pageUrl({ q, label, page, perPage }) })).join('') : '<p class="empty">Hier zijn nog geen verhalen voor gevonden. Probeer een ander woord of thema.</p>'}</div></section>${pagination}${readingUi.pathsPreview(availablePaths(archive))}${burnoutInsightCta()}`;
     return send(res, layout(pageTitle, content, { admin: isAdmin(req), description, canonicalPath: homepageCanonicalPath({ q, label, page: perPage === POSTS_PER_PAGE ? page : Math.floor(((page - 1) * perPage) / POSTS_PER_PAGE) + 1 }), siteUrl: getSiteUrl(req), robots: q || !totalPosts || perPage !== POSTS_PER_PAGE ? 'noindex, follow' : 'index, follow', structuredData: homepageStructuredData(visiblePosts, req) }));
   }
   if (method === 'POST' && /^\/posts\/[^/]+\/read$/.test(pathname)) {
@@ -358,7 +361,9 @@ async function handler(req, res) {
     if (pathname.endsWith('/')) return redirect(res, pathname.slice(0, -1) + req.urlObj.search, 308);
     const id = decodeURIComponent(pathname.split('/').pop()); const archive = allPosts(); const post = archive.find(item => item.id === id);
     if (!post) return send(res, layout('Niet gevonden', '<p class="empty">Dit verhaal bestaat niet.</p>', { admin: isAdmin(req), canonicalPath: pathname, siteUrl: getSiteUrl(req), robots: 'noindex, follow' }), 404);
-    const content = `<div class="story-layout"><article class="story"${isAdmin(req) ? '' : ` data-post-id="${escapeHtml(post.id)}"`}><header class="story-heading"><a class="back-link" href="${escapeHtml(backToArchive(req.urlObj.searchParams.get('from')))}">${icon('left')} ${req.urlObj.searchParams.has('from') ? 'Terug naar je selectie' : 'Terug naar alle verhalen'}</a><p class="eyebrow story-author">${escapeHtml(post.author)}</p><h1>${escapeHtml(post.title)}</h1><div class="reader-settings"><label for="reading-size">Tekstgrootte</label><select id="reading-size" data-reading-size><option value="normal">Standaard</option><option value="large">Groter</option><option value="extra">Extra groot</option></select><label for="reading-width">Leesbreedte</label><select id="reading-width" data-reading-width><option value="wide">Ruim</option><option value="focused">Smaller</option></select></div>${storyActions(post, getSiteUrl(req))}</header><div class="story-content${(post.replies || []).length ? ' has-replies' : ''}"><div class="body">${renderText(post.body)}</div>${renderReplies(post, { admin: isAdmin(req) })}</div>${isAdmin(req) ? `<p><a class="button" href="/admin/edit/${encodeURIComponent(post.id)}">Bewerken</a></p>${adminReplyForm(post)}` : ''}</article>${storySidebar(post, archive)}</div>`;
+    const route = availablePaths(archive).find(route => route.id === req.urlObj.searchParams.get('route') && route.posts.some(item => item.id === post.id));
+    const backPath = route ? readingUi.pathUrl(route) : backToArchive(req.urlObj.searchParams.get('from'));
+    const content = `<div class="story-layout"><article class="story" data-reader data-reader-id="${escapeHtml(post.id)}" data-reader-title="${escapeHtml(post.title)}" data-reader-route="${escapeHtml(route?.id || '')}"${isAdmin(req) ? '' : ` data-post-id="${escapeHtml(post.id)}"`}><header class="story-heading"><a class="back-link" href="${escapeHtml(backPath)}">${icon('left')} ${route ? 'Terug naar de leesroute' : req.urlObj.searchParams.has('from') ? 'Terug naar je selectie' : 'Terug naar alle verhalen'}</a><p class="eyebrow story-author"><a class="author-link" href="${attributionPath(post)}">${escapeHtml(post.author)}</a></p><h1>${escapeHtml(post.title)}</h1><details class="reading-preferences" open><summary>Leesvoorkeuren ${icon('right')}</summary><div class="reader-settings"><label for="reading-size">Tekstgrootte</label><select id="reading-size" data-reading-size><option value="normal">Standaard</option><option value="large">Groter</option><option value="extra">Extra groot</option></select><label for="reading-width">Leesbreedte</label><select id="reading-width" data-reading-width><option value="wide">Ruim</option><option value="focused">Smaller</option></select><label class="progress-setting" data-progress-setting hidden><input type="checkbox" data-progress-toggle checked> Leesvoortgang tonen</label></div></details>${storyActions(post, getSiteUrl(req))}</header>${readingUi.storyTools(post)}<div class="story-content${(post.replies || []).length ? ' has-replies' : ''}"><div class="body" id="story-text">${renderText(post.body)}</div>${renderReplies(post, { admin: isAdmin(req) })}</div>${isAdmin(req) ? `<p><a class="button" href="/admin/edit/${encodeURIComponent(post.id)}">Bewerken</a></p>${adminReplyForm(post)}` : ''}${readingUi.pathContext(route, post)}</article>${storySidebar(post, archive)}</div>`;
     return send(res, layout(post.title, content, { admin: isAdmin(req), description: toSeoDescription(post.body, post.title), canonicalPath: `/posts/${encodeURIComponent(post.id)}`, type: 'article', siteUrl: getSiteUrl(req), structuredData: postStructuredData(post, req), post }));
   }
 
@@ -399,7 +404,7 @@ async function handler(req, res) {
   if (method === 'GET' && pathname === '/admin/export') {
     if (requireAdmin(req, res)) return;
     res.setHeader('Content-Disposition', `attachment; filename="hyperpedia-archive-v${APP_VERSION}.json"`);
-    return send(res, JSON.stringify({ schemaVersion: 1, appVersion: APP_VERSION, exportedAt: new Date().toISOString(), posts: allPosts() }, null, 2), 200, 'application/json; charset=utf-8');
+    return send(res, JSON.stringify({ schemaVersion: 1, appVersion: APP_VERSION, exportedAt: new Date().toISOString(), posts: allPosts(), ...getPathExport() }, null, 2), 200, 'application/json; charset=utf-8');
   }
   if (method === 'GET' && pathname === '/admin') { if (requireAdmin(req,res)) return; return send(res, layout('Beheer', adminDashboard(), { admin: true, robots: 'noindex, nofollow' })); }
   if (method === 'POST' && pathname === '/admin/posts') {

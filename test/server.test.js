@@ -594,7 +594,8 @@ test('SEO assets, request safety, sessions and canonical routes remain consisten
     assert.equal(json.text, '<!-- <script> </script> & herkenning');
     assert.equal(json.commentCount, 1);
     assert.equal(json.datePublished, undefined);
-    const image = await fetch(json.image);
+    assert.equal(json.image, undefined);
+    const image = await fetch(html.match(/property="og:image" content="([^"]+)"/)[1]);
     assert.equal(image.headers.get('content-type'), 'image/png');
     assert.equal(Buffer.from(await image.arrayBuffer()).readUInt32BE(16), 1200);
     const manifest = await (await fetch(`${base}/site.webmanifest`)).json();

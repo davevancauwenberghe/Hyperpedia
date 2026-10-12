@@ -1,5 +1,9 @@
 // A single decorative SVG vocabulary for the server-rendered interface.
 const paths = {
+  bookmark: '<path d="M6 3h12v18l-6-4-6 4z"/>',
+  focus: '<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5M8 8h8v8H8z"/>',
+  route: '<circle cx="6" cy="5" r="2"/><circle cx="18" cy="19" r="2"/><path d="M6 7v5a3 3 0 0 0 3 3h6a3 3 0 0 0 0-6h-3m6 6v2"/>',
+  check: '<path d="m5 12 4 4L19 6"/>',
   moon: '<path d="M20.9 13a9 9 0 0 1-9.9-9.9A9 9 0 1 0 20.9 13Z"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
   left: '<path d="m12 5-7 7 7 7M5 12h14"/>',

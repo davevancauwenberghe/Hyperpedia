@@ -14,7 +14,7 @@ function archivePath(label = '', page = 1) {
 }
 
 // Build from the live store, so publishing and editing require no sitemap rebuild.
-function sitemapDocuments(posts, siteUrl, perPage = 18) {
+function sitemapDocuments(posts, siteUrl, perPage = 18, extraPaths = []) {
   const entries = new Map();
   const add = (loc, lastmod) => entries.set(loc, { loc, lastmod });
   const labels = new Map();
@@ -25,6 +25,7 @@ function sitemapDocuments(posts, siteUrl, perPage = 18) {
     }
   };
   addArchive('', posts.length);
+  for (const path of extraPaths) add(path);
   for (const post of posts) {
     add(`/posts/${encodeURIComponent(post.id)}`, isoDate(post.updated_at) || isoDate(post.created_at));
     for (const label of new Set(post.labels || [])) labels.set(label, (labels.get(label) || 0) + 1);

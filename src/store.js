@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const { validatePathDefinitions } = require('./reading');
 
 const dataDir = process.env.DATA_DIR || '/data';
 fs.mkdirSync(dataDir, { recursive: true });
@@ -9,6 +10,7 @@ const legacyStorePath = path.join(dataDir, 'hyper-posts.json');
 const adminPath = path.join(dataDir, 'hyperpedia-admin.json');
 const legacyAdminPath = path.join(dataDir, 'hyper-admin.json');
 const readMetricsPath = path.join(dataDir, 'hyperpedia-read-metrics.json');
+const readingPathsPath = path.join(dataDir, 'hyperpedia-reading-paths.json');
 
 const jsonCache = new Map();
 function readJson(file, fallback) {
@@ -69,6 +71,18 @@ function rawPosts() {
   return validatePosts(stored?.posts);
 }
 function allPosts() { return rawPosts().map(normalizePost); }
+function getPathDefinitions() { return validatePathDefinitions(readJson(readingPathsPath, { paths: [] }).paths); }
+function getPathExport() {
+  try { return { readingPaths: getPathDefinitions(), warnings: [] }; }
+  catch {
+    return { readingPaths: null, warnings: [{ code: 'READING_PATHS_UNREADABLE', message: 'Leesroutes konden niet worden gelezen. Alle verhalen en reacties zijn geëxporteerd. Bewaar of herstel hyperpedia-reading-paths.json afzonderlijk.' }] };
+  }
+}
+function savePathDefinitions(definitions) {
+  validatePathDefinitions(definitions);
+  getPathDefinitions(); // A corrupt existing file must never be silently replaced.
+  writeJson(readingPathsPath, { schemaVersion: 1, paths: definitions });
+}
 function savePosts(posts) {
   validatePosts(posts);
   const previous = rawPosts();
@@ -144,4 +158,4 @@ async function verifyPasswordAsync(password, admin) {
   const hash = await new Promise((resolve, reject) => crypto.pbkdf2(password, admin.salt, admin.iterations, 32, 'sha256', (error, result) => error ? reject(error) : resolve(result)));
   return crypto.timingSafeEqual(hash, Buffer.from(admin.hash, 'hex'));
 }
-module.exports = { allPosts, savePosts, recordPostRead, purgePostRead, getStats, getAdmin, saveAdmin, verifyPassword, verifyPasswordAsync };
+module.exports = { allPosts, savePosts, recordPostRead, purgePostRead, getStats, getAdmin, saveAdmin, verifyPassword, verifyPasswordAsync, getPathDefinitions, savePathDefinitions, getPathExport };
