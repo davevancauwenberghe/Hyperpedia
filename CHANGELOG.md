@@ -16,7 +16,7 @@
 - Give story and reply authors working, contribution-specific attribution URLs with clear archive context; matching display names are never merged into inferred identities.
 - Keep social preview images in sharing metadata and remove the generic preview from forum-post structured data.
 - Include public reading paths in the sitemap; private reading-list views and attribution pages remain outside it.
-- Export curated path definitions with the archive and preserve corrupt selection files rather than overwriting them. Public theme routes remain usable when selections are unreadable.
+- Export curated path definitions with the archive and preserve corrupt selection files rather than overwriting them. Public theme routes and primary archive exports remain usable when selections are unreadable; exports include an explicit warning for missing route data.
 - Add server and browser regressions covering author links, path editing, private storage, resume/focus controls, reduced motion, and mobile/desktop layouts.
 
 ## 0.5.1 — 2026-10-12

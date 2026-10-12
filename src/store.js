@@ -72,6 +72,12 @@ function rawPosts() {
 }
 function allPosts() { return rawPosts().map(normalizePost); }
 function getPathDefinitions() { return validatePathDefinitions(readJson(readingPathsPath, { paths: [] }).paths); }
+function getPathExport() {
+  try { return { readingPaths: getPathDefinitions(), warnings: [] }; }
+  catch {
+    return { readingPaths: null, warnings: [{ code: 'READING_PATHS_UNREADABLE', message: 'Leesroutes konden niet worden gelezen. Alle verhalen en reacties zijn geëxporteerd. Bewaar of herstel hyperpedia-reading-paths.json afzonderlijk.' }] };
+  }
+}
 function savePathDefinitions(definitions) {
   validatePathDefinitions(definitions);
   getPathDefinitions(); // A corrupt existing file must never be silently replaced.
@@ -152,4 +158,4 @@ async function verifyPasswordAsync(password, admin) {
   const hash = await new Promise((resolve, reject) => crypto.pbkdf2(password, admin.salt, admin.iterations, 32, 'sha256', (error, result) => error ? reject(error) : resolve(result)));
   return crypto.timingSafeEqual(hash, Buffer.from(admin.hash, 'hex'));
 }
-module.exports = { allPosts, savePosts, recordPostRead, purgePostRead, getStats, getAdmin, saveAdmin, verifyPassword, verifyPasswordAsync, getPathDefinitions, savePathDefinitions };
+module.exports = { allPosts, savePosts, recordPostRead, purgePostRead, getStats, getAdmin, saveAdmin, verifyPassword, verifyPasswordAsync, getPathDefinitions, savePathDefinitions, getPathExport };

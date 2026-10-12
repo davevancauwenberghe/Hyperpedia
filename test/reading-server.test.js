@@ -180,6 +180,29 @@ test('personal library, paths, author URLs and protected path editing preserve t
       await (await fetch(base + '/leesroutes')).text(),
       /ademhaling/,
     );
+    const recoveryExport = await fetch(base + '/admin/export', {
+      headers: { cookie },
+    });
+    assert.equal(recoveryExport.status, 200);
+    assert.equal(
+      recoveryExport.headers.get('cache-control'),
+      'private, no-store',
+    );
+    const recovery = await recoveryExport.json();
+    assert.equal(recovery.posts.length, 6);
+    assert.equal(
+      recovery.posts[0].body,
+      'Een eerste alinea.\n\nEen tweede alinea.',
+    );
+    assert.equal(recovery.readingPaths, null);
+    assert.equal(recovery.warnings[0].code, 'READING_PATHS_UNREADABLE');
+    assert.equal(
+      fs.readFileSync(
+        path.join(process.env.DATA_DIR, 'hyperpedia-reading-paths.json'),
+        'utf8',
+      ),
+      '{broken',
+    );
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

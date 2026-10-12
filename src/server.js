@@ -12,7 +12,7 @@ const { createReadingPages, availablePaths } = require('./reading-pages');
 const { createAuth } = require('./auth');
 const { readForm, createLoginBodyReader } = require('./forms');
 const { searchPosts, storiesOfTheDay, pageSize } = require('./archive');
-const { allPosts, savePosts, recordPostRead, purgePostRead, getStats, getAdmin, verifyPasswordAsync, getPathDefinitions } = require('./store');
+const { allPosts, savePosts, recordPostRead, purgePostRead, getStats, getAdmin, verifyPasswordAsync, getPathExport } = require('./store');
 const auth = createAuth();
 const readLoginBody = createLoginBodyReader();
 const POSTS_PER_PAGE = 18;
@@ -404,7 +404,7 @@ async function handler(req, res) {
   if (method === 'GET' && pathname === '/admin/export') {
     if (requireAdmin(req, res)) return;
     res.setHeader('Content-Disposition', `attachment; filename="hyperpedia-archive-v${APP_VERSION}.json"`);
-    return send(res, JSON.stringify({ schemaVersion: 1, appVersion: APP_VERSION, exportedAt: new Date().toISOString(), posts: allPosts(), readingPaths: getPathDefinitions() }, null, 2), 200, 'application/json; charset=utf-8');
+    return send(res, JSON.stringify({ schemaVersion: 1, appVersion: APP_VERSION, exportedAt: new Date().toISOString(), posts: allPosts(), ...getPathExport() }, null, 2), 200, 'application/json; charset=utf-8');
   }
   if (method === 'GET' && pathname === '/admin') { if (requireAdmin(req,res)) return; return send(res, layout('Beheer', adminDashboard(), { admin: true, robots: 'noindex, nofollow' })); }
   if (method === 'POST' && pathname === '/admin/posts') {
