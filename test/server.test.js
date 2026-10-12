@@ -819,3 +819,80 @@ test('stale reply edits preserve every submitted field and reopen the reply edit
     assert.equal(store.allPosts()[0].replies[0].body, 'Mijn concept');
   } finally { await new Promise(resolve => server.close(resolve)); }
 });
+
+test('login uploads reject oversized and excess requests, close sockets, and expire occupied slots', { timeout: 12000 }, async () => {
+  const http = require('node:http');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hyperpedia-'));
+  process.env.DATA_DIR = dir;
+  process.env.SESSION_SECRET = 'x'.repeat(32);
+  const previousFlyApp = process.env.FLY_APP_NAME;
+  process.env.FLY_APP_NAME = 'hyper';
+  delete require.cache[require.resolve('../src/store')];
+  delete require.cache[require.resolve('../src/server')];
+  const store = require('../src/store');
+  store.saveAdmin('admin', 'safe-password');
+  const { server } = require('../src/server');
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const requests = [];
+  function upload(ip, { length, data = '', complete = false } = {}) {
+    const received = new Promise(resolve => server.once('request', resolve));
+    let request;
+    let close;
+    const closed = new Promise(resolve => { close = resolve; });
+    const response = new Promise((resolve, reject) => {
+      request = http.request(base + '/login', {
+        method: 'POST',
+        headers: { 'fly-client-ip': ip, ...(length === undefined ? {} : { 'content-length': String(length) }) },
+      }, res => {
+        res.resume();
+        res.once('end', () => resolve({ status: res.statusCode, headers: res.headers }));
+      });
+      request.on('error', reject);
+      request.once('socket', socket => socket.once('close', close));
+    });
+    response.catch(() => {});
+    requests.push(request);
+    request.flushHeaders();
+    if (data) request.write(data);
+    if (complete) request.end();
+    return { received, response, closed };
+  }
+  try {
+    const declared = upload('192.0.2.200', { length: 8193 });
+    assert.equal((await declared.response).status, 413);
+    await declared.closed;
+    const chunked = upload('192.0.2.200', { data: 'x'.repeat(8193), complete: true });
+    assert.equal((await chunked.response).status, 413);
+    await chunked.closed;
+    const slow = [];
+    for (let i = 1; i <= 16; i++) {
+      const active = upload(`192.0.2.${i}`, { length: 8192, data: 'x='.padEnd(8190, 'x') });
+      slow.push(active);
+      await active.received;
+    }
+    for (const ip of ['192.0.2.1', '192.0.2.100']) {
+      const rejected = upload(ip, { length: 100 });
+      const response = await rejected.response;
+      assert.equal(response.status, 429);
+      assert.equal(response.headers.connection, 'close');
+      assert.equal(response.headers['retry-after'], '1');
+      await rejected.closed;
+    }
+    const timeouts = await Promise.all(slow.map(active => active.response));
+    assert.ok(timeouts.every(response => response.status === 408 && response.headers.connection === 'close'));
+    await Promise.all(slow.map(active => active.closed));
+    const login = await fetch(base + '/login', {
+      method: 'POST', headers: { 'fly-client-ip': '192.0.2.100' },
+      body: new URLSearchParams({ username: 'admin', password: 'safe-password' }), redirect: 'manual',
+    });
+    assert.equal(login.status, 302);
+    assert.match(login.headers.get('set-cookie'), /hyperpedia_session=/);
+  } finally {
+    requests.forEach(request => request.destroy());
+    server.closeAllConnections();
+    await new Promise(resolve => server.close(resolve));
+    if (previousFlyApp === undefined) delete process.env.FLY_APP_NAME;
+    else process.env.FLY_APP_NAME = previousFlyApp;
+  }
+});

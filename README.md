@@ -86,6 +86,8 @@ Onleesbare of corrupte archiefbestanden veroorzaken nu een fout in plaats van ee
 
 ## Versies en onderhoud
 
+Inloguploads zijn afzonderlijk begrensd: maximaal 8 KiB per formulier, één actieve upload per clientadres en 16 tegelijk. Een upload moet binnen vijf seconden klaar zijn; geweigerde of verlopen uploads sluiten de verbinding. Deze limieten staan los van de vier gelijktijdige wachtwoordcontroles.
+
 `package.json` is de bron voor de appversie. De footer, opstartmelding, HTTP-header `X-Hyperpedia-Version`, exportbestandsnaam en CSS/JS-cacheversies gebruiken dezelfde waarde. Wijzig toekomstige versies met `npm version patch --no-git-tag-version` (of `minor`), werk `CHANGELOG.md` bij en voer `npm test` uit voordat je de wijziging publiceert. Node 22 of nieuwer is vereist; de Docker-image gebruikt Node 24.
 
 De openbare navigatie toont geen beheerkoppeling. Open `/login` om te beheren. Via **Archief exporteren** op `/admin` download je een JSON-kopie van alle verhalen en reacties, met schema- en appversie. De export bevat geen wachtwoordgegevens of sessies en vervangt geen volledige back-up van het volume.

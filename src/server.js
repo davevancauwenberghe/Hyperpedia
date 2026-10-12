@@ -6,9 +6,11 @@ const { isoDate: toIsoDate, sitemapDocuments } = require('./seo');
 const { version: APP_VERSION } = require('../package.json');
 const { icon } = require('./icons');
 const { createAuth } = require('./auth');
+const { readForm, createLoginBodyReader } = require('./forms');
 const { searchPosts, storiesOfTheDay, pageSize } = require('./archive');
 const { allPosts, savePosts, recordPostRead, purgePostRead, getStats, getAdmin, verifyPasswordAsync } = require('./store');
 const auth = createAuth();
+const readLoginBody = createLoginBodyReader();
 const POSTS_PER_PAGE = 18;
 
 const layout = (title, content, { admin = false, error = '', notice = '', description = 'Hyperpedia verzamelt herkenbare verhalen over hyperventilatie, stress en lichamelijke sensaties.', canonicalPath = '/', siteUrl = getSiteUrl(), type = 'website', robots = 'index, follow', structuredData = null, post = null } = {}) => {
@@ -176,20 +178,7 @@ function requireAdmin(req, res) { if (!isAdmin(req)) { redirect(res, '/login'); 
 function redirect(res, to, code = 302) { res.writeHead(code, { Location: to }); res.end(); }
 function send(res, html, code = 200, type = 'text/html; charset=utf-8') { res.writeHead(code, { 'Content-Type': type }); res.end(html); }
 async function collect(req) {
-  const body = await new Promise((resolve, reject) => {
-    const chunks = [];
-    let size = 0;
-    let exceeded = false;
-    req.on('data', chunk => {
-      size += chunk.length;
-      if (size > 1024 * 1024) {
-        if (!exceeded) { exceeded = true; chunks.length = 0; reject(Object.assign(new Error('Formulier is te groot.'), { status: 413 })); }
-      } else chunks.push(chunk);
-    });
-    req.on('end', () => { if (!exceeded) resolve(Object.fromEntries(new URLSearchParams(Buffer.concat(chunks).toString('utf8')))); });
-    req.on('error', reject);
-    req.on('aborted', () => reject(Object.assign(new Error('Verzoek afgebroken.'), { status: 400 })));
-  });
+  const body = await readForm(req);
   if (req.urlObj.pathname.startsWith('/admin/')) {
     const fields = req.urlObj.pathname.startsWith('/admin/reply/') ? ['author', 'body'] : ['author', 'title', 'body'];
     if (fields.some(key => !body[key]?.trim()) || (body.title || '').length > 300 || (body.author || '').length > 200 || (body.labels || '').length > 2000) {
@@ -382,9 +371,9 @@ async function handler(req, res) {
   }
   if (method === 'GET' && pathname === '/login') return send(res, layout('Login', loginPage(), loginPageOptions(req)));
   if (method === 'POST' && pathname === '/login') {
-    // Unfinished uploads must not reserve the bounded password-verification slots.
-    const body = await collect(req);
     const key = auth.loginKey(req);
+    // Upload admission and deadlines are independent of password-verification slots.
+    const body = await readLoginBody(req, key);
     const retry = auth.beginLogin(key);
     if (retry) {
       res.setHeader('Retry-After', String(retry));
@@ -496,6 +485,11 @@ const server = http.createServer((req, res) => {
     if (res.headersSent) return res.end();
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('X-Robots-Tag', 'noindex');
+    if (error.closeConnection) {
+      res.setHeader('Connection', 'close');
+      res.shouldKeepAlive = false;
+    }
+    if (status === 429) res.setHeader('Retry-After', '1');
     send(res, status === 500 ? 'Er ging iets mis. Probeer het later opnieuw.' : status === 400 ? 'Ongeldig verzoek.' : error.message, status, 'text/plain; charset=utf-8');
   });
 });
