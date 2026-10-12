@@ -3,6 +3,22 @@ const fs = require('node:fs');
 const os = require('node:os');
 const assert = require('node:assert/strict');
 const { chromium: pw } = require('playwright');
+async function within(promise) {
+  let timer;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error('Delayed request timed out')),
+          10_000,
+        );
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 process.env.DATA_DIR = fs.mkdtempSync(os.tmpdir() + '/hyper-release-');
 process.env.SESSION_SECRET = 'x'.repeat(32);
 delete process.env.SITE_URL;
@@ -229,6 +245,115 @@ const { server } = require('../src/server');
     assert.equal(await page.locator('[data-post-grid] > .card').count(), 30);
     console.log(
       'Failed adaptive fetch preserves readable content and recovers: passed',
+    );
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await settle(24, 1);
+    let releaseResponse;
+    let requestStarted;
+    let responseHandled;
+    const responseGate = new Promise((resolve) => {
+      releaseResponse = resolve;
+    });
+    const started = new Promise((resolve) => {
+      requestStarted = resolve;
+    });
+    const handled = new Promise((resolve) => {
+      responseHandled = resolve;
+    });
+    const delayed = (url) =>
+      url.pathname === '/' && url.searchParams.get('perPage') === '36';
+    await page.route(delayed, async (route) => {
+      const response = await route.fetch();
+      requestStarted();
+      await responseGate;
+      try {
+        await route.fulfill({ response });
+      } catch {
+        /* The client may already have aborted the obsolete request. */
+      } finally {
+        responseHandled();
+      }
+    });
+    await page.setViewportSize({ width: 2560, height: 1000 });
+    await within(started);
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.waitForFunction(
+      () => document.querySelector('.archive-status').textContent === '',
+    );
+    releaseResponse();
+    await within(handled);
+    await page.waitForTimeout(300);
+    assert.equal(
+      await page.locator('[data-post-grid]').getAttribute('data-per-page'),
+      '24',
+    );
+    assert.equal(await page.locator('[data-post-grid] > .card').count(), 24);
+    assert.equal(new URL(page.url()).searchParams.get('perPage'), '24');
+    await page.unroute(delayed);
+    console.log(
+      'Returning to the previous width rejects a delayed resize response: passed',
+    );
+    let releaseNavigation;
+    let navigationStarted;
+    let navigationHandled;
+    const navigationGate = new Promise((resolve) => {
+      releaseNavigation = resolve;
+    });
+    const navigating = new Promise((resolve) => {
+      navigationStarted = resolve;
+    });
+    const navigated = new Promise((resolve) => {
+      navigationHandled = resolve;
+    });
+    const delayedNavigation = (url) =>
+      url.pathname === '/' &&
+      url.searchParams.get('page') === '3' &&
+      url.searchParams.get('perPage') === '24';
+    await page.route(delayedNavigation, async (route) => {
+      const response = await route.fetch();
+      navigationStarted();
+      await navigationGate;
+      try {
+        await route.fulfill({ response });
+      } catch {
+        /* A resize may replace this request with an adapted page size. */
+      } finally {
+        navigationHandled();
+      }
+    });
+    await page
+      .locator('[data-page-select]')
+      .selectOption('/?page=3&perPage=24');
+    await within(navigating);
+    await page.setViewportSize({ width: 1480, height: 1000 });
+    await page.waitForTimeout(350);
+    assert.equal(
+      await page.locator('[data-post-grid]').getAttribute('aria-busy'),
+      'true',
+    );
+    await page.setViewportSize({ width: 2560, height: 1000 });
+    await settle(36, 2);
+    releaseNavigation();
+    await within(navigated);
+    await page.waitForTimeout(300);
+    assert.equal(
+      await page.locator('[data-post-grid]').getAttribute('data-per-page'),
+      '36',
+    );
+    assert.equal(
+      await page.locator('[data-post-grid]').getAttribute('data-page'),
+      '2',
+    );
+    assert.equal(
+      await page
+        .locator('[data-post-grid] > [data-story-id="post-48"]')
+        .count(),
+      1,
+    );
+    assert.equal(new URL(page.url()).searchParams.get('page'), '2');
+    await page.unroute(delayedNavigation);
+    console.log(
+      'Resizing during pagination keeps the requested archive position: passed',
     );
     assert.deepEqual(errors, []);
     await context.close();

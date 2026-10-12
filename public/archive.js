@@ -9,6 +9,7 @@
   status.setAttribute('aria-live', 'polite');
   section().before(status);
   let pending;
+  let activeNavigation = null;
   let generation = 0;
   let resizeTimer;
   let initialized = false;
@@ -49,6 +50,15 @@
     { navigation = false, pop = false } = {},
   ) {
     const desired = sizeForWidth();
+    if (!navigation && !pop && activeNavigation) {
+      // Resizing must retain a page choice that is still loading.
+      if (desired === activeNavigation.size) {
+        resizing = false;
+        return;
+      }
+      target = activeNavigation.target;
+      ({ navigation, pop } = activeNavigation);
+    }
     const url = new URL(target, window.location.origin);
     const oldSize =
       navigation || pop
@@ -71,6 +81,11 @@
       Math.max(1, Math.ceil(total / desired)),
     );
     if (!navigation && !pop && desired === Number(grid.dataset.perPage)) {
+      // A previous resize response may still be in flight after returning to this width.
+      ++generation;
+      pending?.abort();
+      pending = undefined;
+      grid.removeAttribute('aria-busy');
       initialized = true;
       resizing = false;
       status.textContent = '';
@@ -87,6 +102,8 @@
     const current = ++generation;
     pending?.abort();
     pending = new AbortController();
+    activeNavigation =
+      navigation || pop ? { target, navigation, pop, size: desired } : null;
     grid.setAttribute('aria-busy', 'true');
     status.textContent = 'Verhalen laden…';
     try {
@@ -127,6 +144,8 @@
           'Meer verhalen laden lukt momenteel niet. Je huidige pagina blijft beschikbaar.';
     } finally {
       if (current === generation) {
+        pending = undefined;
+        activeNavigation = null;
         initialized = true;
         resizing = false;
         grid.removeAttribute('aria-busy');
