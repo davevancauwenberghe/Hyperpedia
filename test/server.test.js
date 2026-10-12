@@ -4,6 +4,7 @@ const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const APP_VERSION = require('../package.json').version;
 
 test('server module loads without a configured session secret', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hyperpedia-'));
@@ -274,7 +275,7 @@ test('homepage paginates forum posts in groups of eighteen', async () => {
   }
 });
 
-test('homepage uses one canonical eighteen-story page size and offers direct page selection', async () => {
+test('server defaults to eighteen-story pages and offers direct page selection', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hyperpedia-'));
   process.env.DATA_DIR = dir;
   process.env.SESSION_SECRET = 'x'.repeat(32);
@@ -300,7 +301,7 @@ test('homepage uses one canonical eighteen-story page size and offers direct pag
     const legacy = await fetch(`${base}/?label=ademhaling&perPage=18`, { redirect: 'manual' });
 
     assert.equal(response.status, 200);
-    assert.equal((stories.match(/<article class="card">/g) || []).length, 18);
+    assert.equal((stories.match(/<article class="card"[^>]*>/g) || []).length, 18);
     assert.match(stories, /Post 18/);
     assert.doesNotMatch(stories, /Post 19/);
     assert.match(html, /data-page-select/);
@@ -436,7 +437,7 @@ test('homepage combines the calm hero with manually controlled stories of the da
     assert.doesNotMatch(html, /wisselen automatisch/);
     const dailySection = html.match(/<section class="daily-stories"[\s\S]*?<section class="toolbar"/)[0];
     assert.equal((dailySection.match(/class="daily-story-slide/g) || []).length, 4);
-    assert.equal((dailySection.match(/<article class="card">/g) || []).length, 4);
+    assert.equal((dailySection.match(/<article class="card"[^>]*>/g) || []).length, 4);
     assert.match(dailySection, /data-daily-prev/);
     assert.match(dailySection, /data-daily-next/);
     assert.equal((dailySection.match(/hidden aria-hidden="true"/g) || []).length, 3);
@@ -650,5 +651,87 @@ test('story sidebar suggests other matching topics and the shared editor preserv
     const dashboard = await (await fetch(`${base}/admin`, { headers: { cookie } })).text();
     assert.match(dashboard, /class="admin-workspace"/);
     assert.match(dashboard, /action="\/admin\/posts"/);
+  } finally { await new Promise(resolve => server.close(resolve)); }
+});
+
+test('v0.5.0 keeps admin hidden, exports content, guards stale edits and preserves result navigation', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hyperpedia-'));
+  process.env.DATA_DIR = dir;
+  process.env.SESSION_SECRET = 'x'.repeat(32);
+  delete require.cache[require.resolve('../src/store')];
+  delete require.cache[require.resolve('../src/server')];
+  const store = require('../src/store');
+  store.saveAdmin('admin', 'safe-password');
+  store.savePosts([{ id: 'one', title: 'Déjà vu', author: 'Naam', body: 'Spanning met vreemde ademhaling', labels: ['ademhaling'] }]);
+  const { server } = require('../src/server');
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const home = await fetch(base);
+    assert.equal(home.headers.get('x-hyperpedia-version'), APP_VERSION);
+    const html = await home.text();
+    const header = html.match(/<header class="site-header">[\s\S]*?<\/header>/)[0];
+    assert.doesNotMatch(header, /href="\/login"|Beheer/);
+    assert.match(header, /<svg class="icon icon-moon"/);
+    assert.ok(html.includes(`style.css?v=${APP_VERSION}`));
+    assert.ok(html.includes(`class="site-version">v${APP_VERSION}`));
+    assert.doesNotMatch(html, /[☾☀←→↗]/);
+    const results = await (await fetch(base + '/?q=deja+ademhaling')).text();
+    assert.match(results, /Déjà vu/);
+    assert.match(results, /posts\/one\?from=/);
+    const story = await (await fetch(base + '/posts/one?from=' + encodeURIComponent('/?q=deja ademhaling'))).text();
+    assert.match(story, /class="back-link" href="\/\?q=deja\+ademhaling"/);
+    assert.match(story, /data-story-copy/);
+    assert.equal((await fetch(base + '/admin/export', { redirect: 'manual' })).status, 302);
+    assert.equal((await fetch(base + '/style.css', { method: 'POST' })).status, 405);
+    const login = await fetch(base + '/login', { method: 'POST', body: new URLSearchParams({ username: 'admin', password: 'safe-password' }), redirect: 'manual' });
+    const cookie = login.headers.get('set-cookie').split(';')[0];
+    const exported = await fetch(base + '/admin/export', { headers: { cookie } });
+    assert.ok(exported.headers.get('content-disposition').includes(`v${APP_VERSION}.json`));
+    assert.equal(exported.headers.get('cache-control'), 'private, no-store');
+    const archive = await exported.json();
+    assert.equal(archive.posts[0].title, 'Déjà vu');
+    assert.equal(archive.appVersion, APP_VERSION);
+    assert.equal(archive.schemaVersion, 1);
+    assert.doesNotMatch(JSON.stringify(archive), /salt|password|iterations/);
+    const edit = await (await fetch(base + '/admin/edit/one', { headers: { cookie } })).text();
+    const revision = edit.match(/name="revision" value="([^"]+)"/)[1];
+    const records = store.allPosts();
+    records[0].body = 'A newer edit from a second tab';
+    store.savePosts(records);
+    const response = await fetch(base + '/admin/edit/one', { method: 'POST', headers: { cookie }, body: new URLSearchParams({ title: 'Changed', author: 'Naam', body: 'My stale draft', revision }), redirect: 'manual' });
+    assert.equal(response.status, 409);
+    assert.match(await response.text(), /My stale draft/);
+    assert.equal(store.allPosts()[0].body, 'A newer edit from a second tab');
+    assert.equal((await fetch(base + '/admin/edit/extra/one', { method: 'POST', headers: { cookie } })).status, 404);
+    await fetch(base + '/posts/one/read', { method: 'POST', headers: { cookie } });
+    assert.equal(store.getStats().readCount, 0);
+  } finally { await new Promise(resolve => server.close(resolve)); }
+});
+
+test('adaptive page sizes fill complete rows while sitemap and default URLs stay stable', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hyperpedia-'));
+  process.env.DATA_DIR = dir;
+  process.env.SESSION_SECRET = 'x'.repeat(32);
+  delete require.cache[require.resolve('../src/store')];
+  delete require.cache[require.resolve('../src/server')];
+  require('../src/store').savePosts(Array.from({ length: 63 }, (_, i) => ({ id: String(i), title: `Post ${String(i).padStart(2, '0')}`, author: 'Naam', body: 'Tekst', labels: ['stress'] })));
+  const { server } = require('../src/server');
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    for (const perPage of [6, 12, 24, 30, 36]) {
+      const html = await (await fetch(`${base}/?label=stress&perPage=${perPage}`)).text();
+      const stories = html.match(/<section class="stories-index"[\s\S]*?<\/section>/)[0];
+      assert.equal((stories.match(/data-story-id=/g) || []).length, perPage);
+      assert.match(html, /robots" content="noindex, follow"/);
+      assert.match(html, new RegExp(`page=2[^\"]*perPage=${perPage}`));
+    }
+    const last = await (await fetch(base + '/?perPage=24&page=3')).text();
+    assert.equal((last.match(/<section class="stories-index"[\s\S]*?<\/section>/)[0].match(/data-story-id=/g) || []).length, 15);
+    assert.equal((await fetch(base + '/?perPage=100000', { redirect: 'manual' })).status, 308);
+    const sitemap = await (await fetch(base + '/sitemap.xml')).text();
+    assert.doesNotMatch(sitemap, /perPage/);
+    assert.match(sitemap, /\?page=4/);
   } finally { await new Promise(resolve => server.close(resolve)); }
 });

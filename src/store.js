@@ -10,16 +10,37 @@ const adminPath = path.join(dataDir, 'hyperpedia-admin.json');
 const legacyAdminPath = path.join(dataDir, 'hyper-admin.json');
 const readMetricsPath = path.join(dataDir, 'hyperpedia-read-metrics.json');
 
+const jsonCache = new Map();
 function readJson(file, fallback) {
-  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (error) {
-    if (error.code === 'ENOENT') return fallback;
+  try {
+    const stat = fs.statSync(file, { bigint: true });
+    const signature = `${stat.ino}:${stat.size}:${stat.mtimeNs}:${stat.ctimeNs}`;
+    const cached = jsonCache.get(file);
+    if (cached?.signature === signature) return structuredClone(cached.value);
+    const value = JSON.parse(fs.readFileSync(file, 'utf8'));
+    jsonCache.set(file, { signature, value });
+    return structuredClone(value);
+  } catch (error) {
+    jsonCache.delete(file);
+    if (error.code === 'ENOENT') return structuredClone(fallback);
     throw error; // Never replace an unreadable/corrupt archive with an empty store.
   }
 }
 function writeJson(file, value) {
-  const tmp = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(value, null, 2));
-  fs.renameSync(tmp, file);
+  const tmp = `${file}.${process.pid}.${crypto.randomBytes(4).toString('hex')}.tmp`;
+  let descriptor;
+  try {
+    descriptor = fs.openSync(tmp, 'wx', 0o600);
+    fs.writeFileSync(descriptor, JSON.stringify(value, null, 2));
+    fs.fsyncSync(descriptor);
+    fs.closeSync(descriptor);
+    descriptor = undefined;
+    fs.renameSync(tmp, file);
+    jsonCache.delete(file);
+  } finally {
+    if (descriptor !== undefined) fs.closeSync(descriptor);
+    if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
+  }
 }
 function readJsonWithLegacy(file, legacyFile, fallback) {
   if (fs.existsSync(file)) return readJson(file, fallback);
@@ -27,17 +48,37 @@ function readJsonWithLegacy(file, legacyFile, fallback) {
 }
 function normalizePost(post) {
   const { read_count, read_metrics_version, ...content } = post;
-  return { ...content, replies: content.replies || [] };
+  return { ...content, title: content.title || '', author: content.author || 'Onbekend', body: content.body || '', labels: content.labels || [], replies: content.replies || [] };
 }
-function allPosts() { return readJsonWithLegacy(storePath, legacyStorePath, { posts: [] }).posts.map(normalizePost); }
+function validatePosts(posts) {
+  if (!Array.isArray(posts)) throw new Error('Invalid archive: posts must be an array.');
+  const ids = new Set();
+  for (const post of posts) {
+    if (!post || typeof post.id !== 'string' || !post.id || ids.has(post.id) ||
+      ['title', 'author', 'body'].some(field => post[field] != null && typeof post[field] !== 'string') ||
+      (post.labels != null && (!Array.isArray(post.labels) || post.labels.some(label => typeof label !== 'string'))) ||
+      (post.replies != null && (!Array.isArray(post.replies) || post.replies.some(reply => !reply || ['body', 'author', 'originalReplier'].some(field => reply[field] != null && typeof reply[field] !== 'string'))))) {
+      throw new Error('Invalid archive record. Restore or repair the archive before editing.');
+    }
+    ids.add(post.id);
+  }
+  return posts;
+}
+function rawPosts() {
+  const stored = readJsonWithLegacy(storePath, legacyStorePath, { posts: [] });
+  return validatePosts(stored?.posts);
+}
+function allPosts() { return rawPosts().map(normalizePost); }
 function savePosts(posts) {
-  const previous = readJsonWithLegacy(storePath, legacyStorePath, { posts: [] }).posts;
+  validatePosts(posts);
+  const previous = rawPosts();
   migrateEmbeddedReadCounts(previous, getReadMetrics());
   writeJson(storePath, { posts: posts.map(normalizePost) });
 }
 function getReadMetrics() {
   const stored = readJson(readMetricsPath, { posts: {} });
-  return stored && typeof stored.posts === 'object' && stored.posts ? stored : { posts: {} };
+  if (!stored || !stored.posts || typeof stored.posts !== 'object' || Array.isArray(stored.posts)) throw new Error('Invalid read metrics store.');
+  return { ...stored, posts: Object.assign(Object.create(null), stored.posts) };
 }
 function saveReadMetrics(metrics) { writeJson(readMetricsPath, { posts: metrics.posts || {} }); }
 function purgePostRead(id) {
@@ -47,12 +88,12 @@ function purgePostRead(id) {
   saveReadMetrics(metrics);
   return existed;
 }
-function metricCount(metrics, id) { return Number(metrics.posts?.[id]?.read_count || 0); }
+function metricCount(metrics, id) { const count = Number(metrics.posts?.[id]?.read_count || 0); return Number.isSafeInteger(count) && count >= 0 ? count : 0; }
 function migrateEmbeddedReadCounts(posts, metrics) {
   let changed = false;
   for (const post of posts) {
     const embeddedCount = Number(post.read_count || 0);
-    if (!Object.prototype.hasOwnProperty.call(metrics.posts || {}, post.id) && embeddedCount > 0) {
+    if (!Object.prototype.hasOwnProperty.call(metrics.posts || {}, post.id) && Number.isSafeInteger(embeddedCount) && embeddedCount > 0) {
       metrics.posts[post.id] = { read_count: embeddedCount };
       changed = true;
     }
@@ -61,18 +102,18 @@ function migrateEmbeddedReadCounts(posts, metrics) {
   return metrics;
 }
 function recordPostRead(id) {
-  const rawPosts = readJsonWithLegacy(storePath, legacyStorePath, { posts: [] }).posts;
-  const post = rawPosts.find(item => item.id === id);
+  const postsFromDisk = rawPosts();
+  const post = postsFromDisk.find(item => item.id === id);
   if (!post) return null;
-  const metrics = migrateEmbeddedReadCounts(rawPosts, getReadMetrics());
+  const metrics = migrateEmbeddedReadCounts(postsFromDisk, getReadMetrics());
   metrics.posts[id] = { read_count: metricCount(metrics, id) + 1 };
   saveReadMetrics(metrics);
   return { ...normalizePost(post), read_count: metrics.posts[id].read_count };
 }
 function getStats() {
-  const rawPosts = readJsonWithLegacy(storePath, legacyStorePath, { posts: [] }).posts;
-  const metrics = migrateEmbeddedReadCounts(rawPosts, getReadMetrics());
-  const posts = rawPosts.map(normalizePost);
+  const postsFromDisk = rawPosts();
+  const metrics = migrateEmbeddedReadCounts(postsFromDisk, getReadMetrics());
+  const posts = postsFromDisk.map(normalizePost);
   const replyCount = posts.reduce((total, post) => total + (post.replies || []).length, 0);
   const readCount = posts.reduce((total, post) => total + metricCount(metrics, post.id), 0);
   const postReads = posts
@@ -88,9 +129,19 @@ function saveAdmin(username, password) {
   const hash = crypto.pbkdf2Sync(password, salt, iterations, 32, 'sha256').toString('hex');
   writeJson(adminPath, { username, salt, iterations, hash, algorithm: 'pbkdf2-sha256' });
 }
+function passwordRecordValid(admin) {
+  return Boolean(admin && typeof admin.salt === 'string' && /^[a-f0-9]{32,}$/i.test(admin.salt) &&
+    Number.isInteger(admin.iterations) && admin.iterations > 0 && admin.iterations <= 2_000_000 &&
+    typeof admin.hash === 'string' && /^[a-f0-9]{64}$/i.test(admin.hash));
+}
 function verifyPassword(password, admin) {
-  if (!admin) return false;
+  if (!passwordRecordValid(admin)) return false;
   const hash = crypto.pbkdf2Sync(password, admin.salt, admin.iterations, 32, 'sha256');
   return crypto.timingSafeEqual(hash, Buffer.from(admin.hash, 'hex'));
 }
-module.exports = { allPosts, savePosts, recordPostRead, purgePostRead, getStats, getAdmin, saveAdmin, verifyPassword };
+async function verifyPasswordAsync(password, admin) {
+  if (!passwordRecordValid(admin)) return false;
+  const hash = await new Promise((resolve, reject) => crypto.pbkdf2(password, admin.salt, admin.iterations, 32, 'sha256', (error, result) => error ? reject(error) : resolve(result)));
+  return crypto.timingSafeEqual(hash, Buffer.from(admin.hash, 'hex'));
+}
+module.exports = { allPosts, savePosts, recordPostRead, purgePostRead, getStats, getAdmin, saveAdmin, verifyPassword, verifyPasswordAsync };

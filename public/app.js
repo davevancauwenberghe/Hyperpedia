@@ -1,6 +1,5 @@
 const root = document.documentElement;
 const themeToggle = document.querySelector('.theme-toggle');
-const themeIcon = document.querySelector('[data-theme-icon]');
 let explicitTheme = false;
 try { explicitTheme = ['dark', 'light'].includes(localStorage.getItem('theme')); } catch {}
 
@@ -10,7 +9,6 @@ const syncThemeControl = () => {
     themeToggle.setAttribute('aria-pressed', String(isDark));
     themeToggle.setAttribute('aria-label', isDark ? 'Licht thema gebruiken' : 'Donker thema gebruiken');
   }
-  if (themeIcon) themeIcon.textContent = isDark ? '☀' : '☾';
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', isDark ? '#1d1916' : '#f7f1e8');
 };
 
@@ -33,6 +31,15 @@ for (const control of document.querySelectorAll('select[data-reading-size]')) {
     if (!['normal', 'large', 'extra'].includes(control.value)) return;
     root.dataset.readingSize = control.value;
     try { localStorage.setItem('reading-size', control.value); } catch {}
+  });
+}
+
+for (const control of document.querySelectorAll('select[data-reading-width]')) {
+  control.value = root.dataset.readingWidth || 'wide';
+  control.addEventListener('change', () => {
+    if (!['wide', 'focused'].includes(control.value)) return;
+    root.dataset.readingWidth = control.value;
+    try { localStorage.setItem('reading-width', control.value); } catch {}
   });
 }
 
@@ -75,23 +82,6 @@ if (openedPost?.dataset.postId) {
   }
 }
 
-const dailyStories = document.querySelector('[data-daily-stories]');
-if (dailyStories) {
-  const scheduleMidnightRefresh = () => {
-    const now = new Date();
-    const nextMidnight = new Date(now);
-    nextMidnight.setHours(24, 0, 0, 0);
-    window.setTimeout(() => window.location.reload(), nextMidnight.getTime() - now.getTime() + 1000);
-  };
-  scheduleMidnightRefresh();
-}
-
-for (const pageSelect of document.querySelectorAll('[data-page-select]')) {
-  pageSelect.addEventListener('change', () => {
-    window.location.assign(pageSelect.value);
-  });
-}
-
 const infoDialog = document.querySelector('[data-info-dialog]');
 const openInfoButtons = document.querySelectorAll('[data-info-open]');
 const closeInfoButtons = document.querySelectorAll('[data-info-close]');
@@ -106,6 +96,35 @@ if (infoDialog) {
   openInfoButtons.forEach(button => button.addEventListener('click', openInfoDialog));
   closeInfoButtons.forEach(button => button.addEventListener('click', closeInfoDialog));
   infoDialog.addEventListener('click', event => {
-    if (event.target === infoDialog) closeInfoDialog();
+    const rect = infoDialog.getBoundingClientRect();
+    if (event.target === infoDialog && (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom)) closeInfoDialog();
   });
+}
+
+const storyActions = document.querySelector('[data-story-actions]');
+if (storyActions) {
+  storyActions.hidden = false;
+  const link = storyActions.querySelector('[data-share-url]');
+  const status = storyActions.querySelector('[data-action-status]');
+  const showStatus = message => { status.textContent = message; };
+  const copyLink = async () => {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable');
+      await navigator.clipboard.writeText(link.value);
+      showStatus('Link gekopieerd.');
+    } catch {
+      link.hidden = false;
+      link.focus();
+      link.select();
+      showStatus('Selecteer en kopieer de link hieronder.');
+    }
+  };
+  storyActions.querySelector('[data-story-copy]').addEventListener('click', copyLink);
+  const shareButton = storyActions.querySelector('[data-story-share]');
+  shareButton.hidden = typeof navigator.share !== 'function';
+  shareButton.addEventListener('click', async () => {
+    try { await navigator.share({ title: document.querySelector('.story h1').textContent, url: link.value }); }
+    catch (error) { if (error.name !== 'AbortError') showStatus('Delen lukt niet. Gebruik Link kopiëren.'); }
+  });
+  storyActions.querySelector('[data-story-print]').addEventListener('click', () => window.print());
 }
