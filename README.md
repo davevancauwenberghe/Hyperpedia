@@ -17,7 +17,7 @@ Open daarna `http://localhost:8080` en ga naar `/login`.
 1. Kies één beheerderaccount; alleen ingelogde beheerders kunnen verhalen toevoegen of bewerken.
 2. Gebruik een uniek wachtwoord van minimaal 16 tekens, bij voorkeur uit een wachtwoordmanager.
 3. Het wachtwoord wordt nooit plaintext opgeslagen: `scripts/create-admin.js` hasht het met PBKDF2-SHA256 met 310.000 iteraties voordat het in de data-mount komt.
-4. Bewaar `SESSION_SECRET` als Fly secret en hergebruik dezelfde waarde tussen deploys, anders worden sessies ongeldig. Als deze secret ontbreekt start de app met een tijdelijke secret zodat Fly-healthchecks niet falen, maar bestaande adminsessies vervallen bij iedere restart.
+4. Bewaar `SESSION_SECRET` als Fly secret voor stabiele ondertekening van cookies. Als deze secret ontbreekt start de app met een tijdelijke secret zodat Fly-healthchecks niet falen. Sessies staan in het servergeheugen en eindigen bij iedere restart of deploy; daarna log je opnieuw in.
 5. Zet secrets op Fly:
 
 ```bash
@@ -27,7 +27,7 @@ fly secrets set SESSION_SECRET="$(openssl rand -base64 48)"
 6. Maak na de eerste deploy een admin aan in de machine met de gemounte database. Gebruik hiervoor `fly ssh console`, niet je lokale `DATA_DIR=./data`, want Fly leest de admin uit `/data/hyperpedia-admin.json` op het volume:
 
 ```bash
-fly ssh console -a hyperpedia -C 'cd /app && node scripts/create-admin.js beheerder "een-heel-lang-uniek-wachtwoord"'
+fly ssh console -a hyper -C 'cd /app && node scripts/create-admin.js beheerder "een-heel-lang-uniek-wachtwoord"'
 ```
 
 ### Login op productie herstellen
@@ -35,19 +35,19 @@ fly ssh console -a hyperpedia -C 'cd /app && node scripts/create-admin.js beheer
 Als je lokaal `DATA_DIR=./data npm run create-admin -- ...` hebt gedraaid en daarna deployt, staat de admin alleen op je Mac in `./data/hyperpedia-admin.json`. Die lokale map wordt niet naar het Fly-volume gekopieerd. Herstel productie zo:
 
 ```bash
-fly secrets set -a hyperpedia SESSION_SECRET="$(openssl rand -base64 48)"
-fly deploy -a hyperpedia
-fly ssh console -a hyperpedia -C 'cd /app && node scripts/create-admin.js beheerder "een-heel-lang-uniek-wachtwoord"'
+fly secrets set -a hyper SESSION_SECRET="$(openssl rand -base64 48)"
+fly deploy -a hyper
+fly ssh console -a hyper -C 'cd /app && node scripts/create-admin.js beheerder "een-heel-lang-uniek-wachtwoord"'
 ```
 
-Let op: verander `SESSION_SECRET` daarna niet meer bij iedere start of deploy. Een nieuwe secret maakt alleen bestaande sessiecookies ongeldig; het adminwachtwoord zelf staat los daarvan in `/data/hyperpedia-admin.json`.
+Het adminwachtwoord staat los van `SESSION_SECRET` in `/data/hyperpedia-admin.json`. Houd de secret stabiel, maar houd er rekening mee dat sessies ook bij een serverrestart eindigen omdat ze in het geheugen staan.
 
 ## Deploy naar Fly.io
 
 Maak eerst het volume in dezelfde regio als `fly.toml`:
 
 ```bash
-fly volumes create hyperpedia_data --region ams --size 1
+fly volumes create hyper_data --region ams --size 1 -a hyper
 fly deploy
 ```
 
@@ -83,3 +83,27 @@ Google bepaalt zelf wanneer pagina's worden gecrawld en geïndexeerd. Een geldig
 `npm test` controleert de routes, beheerhandelingen, sessies, SEO, sitemapopdeling en archiefopslag. Formulieren zijn begrensd op 1 MiB en vereiste inhoud wordt op de server gecontroleerd. Logout trekt de serversessie in en sessies verlopen na zeven dagen. Maak regelmatig een back-up van het Fly-volume: atomaire JSON-writes zijn geen back-up. De JSON-opslag is bedoeld voor één schrijvend Node-proces op één volume; meerdere replicas vereisen een gedeelde database.
 
 Onleesbare of corrupte archiefbestanden veroorzaken nu een fout in plaats van een leeg archief dat later overschreven kan worden. Herstel zo'n bestand vanuit een back-up voordat je verder bewerkt.
+
+## Versies en v0.5.0
+
+`package.json` is de bron voor de appversie. De footer, opstartmelding, HTTP-header `X-Hyperpedia-Version`, exportbestandsnaam en CSS/JS-cacheversies gebruiken dezelfde waarde. Wijzig toekomstige versies met `npm version patch --no-git-tag-version` (of `minor`), werk `CHANGELOG.md` bij en voer `npm test` uit voordat je de wijziging publiceert. Node 22 of nieuwer is vereist; de Docker-image gebruikt Node 24.
+
+De openbare navigatie toont geen beheerkoppeling. Open `/login` om te beheren. Via **Archief exporteren** op `/admin` download je een JSON-kopie van alle verhalen en reacties, met schema- en appversie. De export bevat geen wachtwoordgegevens of sessies en vervangt geen volledige back-up van het volume.
+
+Het archief gebruikt zes verhalen per zichtbare kaartkolom: 6, 12, 18, 24, 30 of 36 per pagina. Browserpaginering en resizing bewaren de selectie en houden de huidige tekst beschikbaar als een verzoek mislukt. De server behoudt standaard 18 verhalen per pagina voor vaste, crawlbare archief- en sitemap-URL's; persoonlijke `perPage`-varianten zijn `noindex, follow`. Zonder JavaScript blijven de serverpagina's bereikbaar.
+
+Zoeken negeert hoofdletters en accenten en zoekt alle ingevoerde woorden, ook in reacties. Verhaallinks bewaren de oorspronkelijke zoekopdracht, het thema en de pagina voor de terugknop. Tekstgrootte en leesbreedte worden alleen in de huidige browser bewaard. Delen en kopiëren gebruiken de schone canonieke verhaallink; afdrukken gebruikt een rustige, lichte opmaak.
+
+Bewerkformulieren bevatten een revisiecontrole: als een ander tabblad het verhaal intussen heeft veranderd, blijft jouw invoer beschikbaar en vraagt de pagina je de laatste versie te openen. HTTP-formulierclients die geen revisie meesturen behouden hun bestaande gedrag. De opslag valideert records vóór schrijven, houdt geïsoleerde caches bij en detecteert vervanging van JSON-bestanden op schijf.
+
+### Browsercontroles
+
+De ontwikkeldependency Playwright draait afzonderlijke regressiecontroles voor paginering, resizing, terugnavigatie, delen/kopiëren, afdrukken, voorkeuren, het informatiedialoogvenster en mislukte netwerkverzoeken. De fixturegegevens staan in een tijdelijke map en gebruiken je echte archief niet.
+
+```bash
+npm ci
+npx playwright install chromium
+npm run test:browser
+```
+
+De Node 24-job in GitHub Actions voert deze browsercontroles ook uit. Een bestaande Chromium-installatie kan worden gekozen met `BROWSER_EXECUTABLE=/pad/naar/chromium npm run test:browser`. Docker installeert uitsluitend productieafhankelijkheden en neemt Playwright niet mee.

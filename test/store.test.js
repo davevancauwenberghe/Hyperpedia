@@ -57,3 +57,31 @@ test('corrupt archive fails closed instead of silently overwriting stories', () 
   assert.throws(() => store.savePosts([]));
   assert.equal(fs.readFileSync(file, 'utf8'), '{broken');
 });
+
+test('cached archive snapshots cannot mutate durable data and external replacements invalidate the cache', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hyperpedia-'));
+  process.env.DATA_DIR = dir;
+  delete require.cache[require.resolve('../src/store')];
+  const store = require('../src/store');
+  store.savePosts([{ id: 'one', title: 'Original', body: 'Text' }]);
+  const snapshot = store.allPosts();
+  snapshot[0].title = 'Not saved';
+  assert.equal(store.allPosts()[0].title, 'Original');
+  fs.writeFileSync(path.join(dir, 'hyperpedia-posts.json'), JSON.stringify({ posts: [{ id: 'one', title: 'Replaced on disk', body: 'Text' }] }));
+  assert.equal(store.allPosts()[0].title, 'Replaced on disk');
+  assert.throws(() => store.savePosts([{ id: 'one', labels: {} }]));
+  assert.equal(store.allPosts()[0].title, 'Replaced on disk');
+});
+
+test('async password checks retain compatibility and malformed credentials fail safely', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hyperpedia-'));
+  process.env.DATA_DIR = dir;
+  delete require.cache[require.resolve('../src/store')];
+  const store = require('../src/store');
+  store.saveAdmin('admin', 'safe-password');
+  const admin = store.getAdmin();
+  assert.equal(await store.verifyPasswordAsync('safe-password', admin), true);
+  assert.equal(await store.verifyPasswordAsync('wrong', admin), false);
+  assert.equal(await store.verifyPasswordAsync('safe-password', { ...admin, hash: '00' }), false);
+  assert.equal(store.verifyPassword('safe-password', { ...admin, iterations: -1 }), false);
+});

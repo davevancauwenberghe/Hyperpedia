@@ -19,3 +19,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - name: Install browser
+        if: matrix.node == 24
+        run: npx playwright install --with-deps chromium
+      - name: Browser regression checks
+        if: matrix.node == 24
+        run: npm run test:browser
