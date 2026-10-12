@@ -84,7 +84,7 @@ Google bepaalt zelf wanneer pagina's worden gecrawld en geïndexeerd. Een geldig
 
 Onleesbare of corrupte archiefbestanden veroorzaken nu een fout in plaats van een leeg archief dat later overschreven kan worden. Herstel zo'n bestand vanuit een back-up voordat je verder bewerkt.
 
-## Versies en v0.5.0
+## Versies en onderhoud
 
 `package.json` is de bron voor de appversie. De footer, opstartmelding, HTTP-header `X-Hyperpedia-Version`, exportbestandsnaam en CSS/JS-cacheversies gebruiken dezelfde waarde. Wijzig toekomstige versies met `npm version patch --no-git-tag-version` (of `minor`), werk `CHANGELOG.md` bij en voer `npm test` uit voordat je de wijziging publiceert. Node 22 of nieuwer is vereist; de Docker-image gebruikt Node 24.
 

@@ -277,9 +277,16 @@ function withRequest(req) {
   req.urlObj = new URL(req.url, 'http://localhost');
 }
 function postRevision(post) { return crypto.createHash('sha256').update(JSON.stringify(post)).digest('hex'); }
-function editConflict(req, res, body, postId) {
-  const draft = `Titel: ${body.title || ''}\nAuteur: ${body.author || ''}\nLabels: ${body.labels || ''}\n\n${body.body || ''}`;
-  return send(res, layout('Verhaal gewijzigd', `<section class="panel"><h1>Dit verhaal is intussen gewijzigd</h1><p>Open de laatste versie voordat je verder bewerkt. Je ingevoerde tekst staat hieronder zodat je die kunt kopiëren.</p><label class="stack">Jouw invoer<textarea rows="14" readonly>${escapeHtml(draft)}</textarea></label><p><a class="button" href="/admin/edit/${encodeURIComponent(postId)}">Laatste versie openen</a></p></section>`, { admin: true, siteUrl: getSiteUrl(req), robots: 'noindex, nofollow' }), 409);
+function editConflict(req, res, body, postId, replyId) {
+  const draft = replyId
+    ? `Naam originele replier: ${body.originalReplier || ''}\nNaam beheerder: ${body.author || ''}\n\n${body.body || ''}`
+    : `Titel: ${body.title || ''}\nAuteur: ${body.author || ''}\nLabels: ${body.labels || ''}\n\n${body.body || ''}`;
+  const editorPath = replyId
+    ? `/admin/reply/${encodeURIComponent(postId)}/${encodeURIComponent(replyId)}/edit`
+    : `/admin/edit/${encodeURIComponent(postId)}`;
+  const title = replyId ? 'Reactie opnieuw openen' : 'Verhaal gewijzigd';
+  const heading = replyId ? 'Dit verhaal of deze reactie is intussen gewijzigd' : 'Dit verhaal is intussen gewijzigd';
+  return send(res, layout(title, `<section class="panel"><h1>${heading}</h1><p>Open de laatste versie voordat je verder bewerkt. Je ingevoerde tekst staat hieronder zodat je die kunt kopiëren.</p><label class="stack">Jouw invoer<textarea rows="14" readonly>${escapeHtml(draft)}</textarea></label><p><a class="button" href="${editorPath}">Laatste versie openen</a></p></section>`, { admin: true, siteUrl: getSiteUrl(req), robots: 'noindex, nofollow' }), 409);
 }
 function backToArchive(value) {
   if (typeof value !== 'string' || !value.startsWith('/?') || value.length > 2000) return '/';
@@ -375,6 +382,8 @@ async function handler(req, res) {
   }
   if (method === 'GET' && pathname === '/login') return send(res, layout('Login', loginPage(), loginPageOptions(req)));
   if (method === 'POST' && pathname === '/login') {
+    // Unfinished uploads must not reserve the bounded password-verification slots.
+    const body = await collect(req);
     const key = auth.loginKey(req);
     const retry = auth.beginLogin(key);
     if (retry) {
@@ -382,7 +391,6 @@ async function handler(req, res) {
       return send(res, layout('Login', loginPage(`Wacht ${retry} seconden voordat je opnieuw probeert in te loggen.`), loginPageOptions(req)), 429);
     }
     try {
-      const body = await collect(req);
       const admin = getAdmin();
       const valid = Boolean(admin && admin.username === body.username && await verifyPasswordAsync(body.password || '', admin));
       const lock = auth.endLogin(key, valid);
@@ -432,7 +440,7 @@ async function handler(req, res) {
     const p = posts.find(x=>x.id===postId);
     const reply = p?.replies?.find(x=>x.id===replyId);
     if (!p || !reply) return send(res, 'Niet gevonden', 404);
-    if (body.revision && body.revision !== postRevision(p)) return editConflict(req, res, body, postId);
+    if (body.revision && body.revision !== postRevision(p)) return editConflict(req, res, body, postId, replyId);
     Object.assign(reply, { originalReplier: body.originalReplier, author: body.author, body: body.body, updated_at: new Date().toISOString() });
     p.updated_at = new Date().toISOString();
     savePosts(posts);

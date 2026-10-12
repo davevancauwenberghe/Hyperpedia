@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1 — 2026-10-12
+
+- Read the bounded login request body before acquiring a password-verification slot, preventing unfinished uploads from blocking administrator login.
+- Preserve the original replier, administrator name and draft text on reply edit conflicts, with a link back to the specific reply editor.
+- Add regressions for four simultaneous unfinished Fly login uploads and complete reply conflict recovery.
+
 ## 0.5.0 — 2026-10-12
 
 ### Interface and reading
