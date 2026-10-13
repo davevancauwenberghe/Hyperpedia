@@ -115,6 +115,17 @@ test('personal library, paths, author URLs and protected path editing preserve t
       redirect: 'manual',
     });
     const cookie = login.headers.get('set-cookie').split(';')[0];
+    assert.equal(
+      (await fetch(base + '/privacy')).headers.get('cache-control'),
+      'no-cache',
+    );
+    for (const method of ['GET', 'HEAD']) {
+      const privacy = await fetch(base + '/privacy', {
+        method,
+        headers: { cookie },
+      });
+      assert.equal(privacy.headers.get('cache-control'), 'private, no-store');
+    }
     const editor = await (
       await fetch(`${base}/admin/leesroutes?id=${routeId}`, {
         headers: { cookie },

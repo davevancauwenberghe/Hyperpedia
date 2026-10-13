@@ -303,7 +303,6 @@ async function handler(req, res) {
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Cache-Control', 'no-cache');
-  if (method === 'GET' && pathname === '/privacy') return send(res, layout('Privacy & opslag', privacyPage(), { canonicalPath: '/privacy', siteUrl: getSiteUrl(req), admin: isAdmin(req), robots: 'noindex, follow' }));
   if (pathname.startsWith('/admin') || pathname === '/login' || pathname === '/logout' || req.admin) {
     res.setHeader('Cache-Control', 'private, no-store');
   }
@@ -318,6 +317,7 @@ async function handler(req, res) {
     if (!req.admin) res.setHeader('Cache-Control', 'public, max-age=3600');
     return send(res, fs.readFileSync(path.join(__dirname, '..', 'public', pathname.slice(1))), 200, assets[pathname]);
   }
+  if (method === 'GET' && pathname === '/privacy') return send(res, layout('Privacy & opslag', privacyPage(), { canonicalPath: '/privacy', siteUrl: getSiteUrl(req), admin: isAdmin(req), robots: 'noindex, follow' }));
   if (await handleReadingPages(req, res, method)) return;
   if (method === 'GET' && pathname === '/robots.txt') return send(res, `User-agent: *\nAllow: /\nSitemap: ${new URL('/sitemap.xml', getSiteUrl(req)).toString()}\n`, 200, 'text/plain; charset=utf-8');
   if (method === 'GET' && (pathname === '/sitemap.xml' || /^\/sitemaps\/[1-9]\d*\.xml$/.test(pathname))) {
