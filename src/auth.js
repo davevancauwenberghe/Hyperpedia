@@ -88,11 +88,11 @@ function createAuth() {
     attempts.set(key, { failures, lockedUntil, expiresAt: now + 15 * 60_000 });
     return lockedUntil ? 60 : 0;
   }
-  function createSession(req) {
+  function createSession(req, remember = false) {
     if (req.sessionId) sessions.delete(req.sessionId);
     const id = crypto.randomBytes(32).toString('hex');
     sessions.set(id, Date.now() + SESSION_TTL);
-    return `hyperpedia_session=${id}.${sign(id)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL / 1000}${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`;
+    return `hyperpedia_session=${id}.${sign(id)}; HttpOnly; SameSite=Lax; Path=/${remember ? `; Max-Age=${SESSION_TTL / 1000}` : ''}${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`;
   }
   function logout(req) {
     sessions.delete(req.sessionId);

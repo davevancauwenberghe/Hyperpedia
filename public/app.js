@@ -1,7 +1,6 @@
 const root = document.documentElement;
 const themeToggle = document.querySelector('.theme-toggle');
-let explicitTheme = false;
-try { explicitTheme = ['dark', 'light'].includes(localStorage.getItem('theme')); } catch {}
+let explicitTheme = ['dark', 'light'].includes(window.hyperpediaStorage.get('theme'));
 
 const syncThemeControl = () => {
   const isDark = root.dataset.theme === 'dark';
@@ -17,7 +16,7 @@ themeToggle?.addEventListener('click', () => {
   const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
   root.dataset.theme = next;
   explicitTheme = true;
-  try { localStorage.setItem('theme', next); } catch {}
+  window.hyperpediaStorage.set('theme', next);
   syncThemeControl();
 });
 
@@ -30,7 +29,7 @@ for (const control of document.querySelectorAll('select[data-reading-size]')) {
   control.addEventListener('change', () => {
     if (!['normal', 'large', 'extra'].includes(control.value)) return;
     root.dataset.readingSize = control.value;
-    try { localStorage.setItem('reading-size', control.value); } catch {}
+    window.hyperpediaStorage.set('reading-size', control.value);
   });
 }
 
@@ -39,7 +38,7 @@ for (const control of document.querySelectorAll('select[data-reading-width]')) {
   control.addEventListener('change', () => {
     if (!['wide', 'focused'].includes(control.value)) return;
     root.dataset.readingWidth = control.value;
-    try { localStorage.setItem('reading-width', control.value); } catch {}
+    window.hyperpediaStorage.set('reading-width', control.value);
   });
 }
 
@@ -75,12 +74,15 @@ for (const carousel of document.querySelectorAll('[data-daily-stories]')) {
 
 
 const openedPost = document.querySelector('[data-post-id]');
-if (openedPost?.dataset.postId) {
+let readCounted = false;
+function countRead() {
+  if (!openedPost?.dataset.postId || readCounted || !window.hyperpediaStorage.consent()?.statistics) return;
+  readCounted = true;
   const readUrl = `/posts/${encodeURIComponent(openedPost.dataset.postId)}/read`;
-  if (!navigator.sendBeacon?.(readUrl, new Blob([], { type: 'application/x-www-form-urlencoded' }))) {
-    fetch(readUrl, { method: 'POST', keepalive: true }).catch(() => {});
-  }
+  fetch(readUrl, { method: 'POST', credentials: 'omit', keepalive: true }).catch(() => {});
 }
+countRead();
+window.addEventListener('hyperpedia:consent', countRead);
 
 const infoDialog = document.querySelector('[data-info-dialog]');
 const openInfoButtons = document.querySelectorAll('[data-info-open]');
@@ -121,8 +123,8 @@ if (storyActions) {
   };
   storyActions.querySelector('[data-story-copy]').addEventListener('click', copyLink);
   const shareButton = storyActions.querySelector('[data-story-share]');
-  shareButton.hidden = typeof navigator.share !== 'function';
   shareButton.addEventListener('click', async () => {
+    if (typeof navigator.share !== 'function') return copyLink();
     try { await navigator.share({ title: document.querySelector('.story h1').textContent, url: link.value }); }
     catch (error) { if (error.name !== 'AbortError') showStatus('Delen lukt niet. Gebruik Link kopiëren.'); }
   });

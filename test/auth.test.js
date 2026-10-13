@@ -41,3 +41,10 @@ test('parallel login checks and forged forwarding headers cannot bypass the loca
   assert.equal(auth.endLogin(key, false), 60);
   assert.ok(auth.beginLogin(key) >= 59);
 });
+
+test('login cookies are session-only unless the administrator explicitly requests persistence', () => {
+  const auth = createAuth();
+  const request = { headers: {}, socket: {} };
+  assert.doesNotMatch(auth.createSession(request), /Max-Age|Expires/);
+  assert.match(auth.createSession(request, true), /Max-Age=604800/);
+});

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.1 — 2026-10-13
+
+- Remove save controls from story previews, the continue-reading shelf, progress indicators, reading history and automatic position restoration. Preserve existing saved stories while deleting the old history record.
+- Consolidate all story options in a quiet Leesvoorkeuren disclosure and remember explicit open/closed choices across refreshes and viewport sizes.
+- Clarify that reading lists belong to one browser and browser profile and expire saved entries after one year.
+- Add an unobtrusive consent banner and editable privacy/storage settings. Keep durable reading preferences and anonymous story-count requests off until separate consent; remember acceptance or refusal for 365 days, support revocation across tabs and explain storage purposes and lifetimes.
+- Make administrator login cookies session-only by default, with an explicit seven-day remember-me choice.
+- Retain archive routes, author attribution, social previews and responsive pagination; cover storage migration, consent, expiry, controls and layouts with regressions.
+
 ## 0.6.0 — 2026-10-12
 
 ### Personal reading
