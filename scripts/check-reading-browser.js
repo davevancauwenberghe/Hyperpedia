@@ -230,6 +230,7 @@ async function run() {
           saved: [
             { id: 'story-3', title: '<img src=x onerror=alert(1)>' },
             { id: 'deleted', title: 'Verwijderd verhaal' },
+            { id: '\ud800', title: 'Ongeldige link' },
           ],
           history: [
             { id: 'story-3', ratio: 0.5, block: 12, updatedAt: Date.now() },
@@ -257,6 +258,20 @@ async function run() {
       ),
       false,
     );
+    await page.route('**/leeslijst/catalogus.json', (route) => route.abort());
+    await page.reload();
+    await page.waitForFunction(() =>
+      document
+        .querySelector('[data-library-status]')
+        .textContent.includes('actuele verhalenlijst'),
+    );
+    assert.equal(await page.locator('[data-remove-bookmark]').count(), 2);
+    assert.equal(await page.locator('[data-saved-list] img').count(), 0);
+    assert.equal(
+      await page.locator('[data-saved-list] a').first().textContent(),
+      '<img src=x onerror=alert(1)>',
+    );
+    await page.unroute('**/leeslijst/catalogus.json');
     await page.locator('[data-clear-library]').click();
     await page.locator('[data-cancel-clear]').click();
     assert.equal(await page.locator('[data-remove-bookmark]').count(), 2);

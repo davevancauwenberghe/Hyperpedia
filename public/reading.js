@@ -3,6 +3,15 @@
   const legacyKey = 'hyperpedia-reading-v1';
   const year = window.hyperpediaStorage.year;
   const empty = () => ({ version: 2, saved: [] });
+  function validId(id) {
+    if (typeof id !== 'string' || !id.length || id.length > 512) return false;
+    try {
+      encodeURIComponent(id);
+      return true;
+    } catch {
+      return false;
+    }
+  }
   function normalize(value) {
     if (value?.version !== 2 || !Array.isArray(value.saved)) return empty();
     const now = Date.now();
@@ -14,9 +23,7 @@
             .filter(
               (entry) =>
                 entry &&
-                typeof entry.id === 'string' &&
-                entry.id.length > 0 &&
-                entry.id.length <= 512 &&
+                validId(entry.id) &&
                 Number.isFinite(entry.savedAt) &&
                 entry.savedAt <= now &&
                 entry.savedAt + year > now,
