@@ -32,7 +32,28 @@ test('personal library, paths, author URLs and protected path editing preserve t
     );
     assert.equal(schema.image, undefined);
     assert.match(story, /property="og:image"/);
-    assert.match(story, /data-reader|data-focus-toggle|data-bookmark/);
+    const options = story.match(
+      /<details class="reading-preferences"[\s\S]*?<\/details>/,
+    )[0];
+    for (const control of [
+      'data-reading-size',
+      'data-reading-width',
+      'data-bookmark',
+      'data-focus-toggle',
+      'data-story-share',
+      'data-story-copy',
+      'data-story-print',
+    ])
+      assert.ok(options.includes(control), control);
+    assert.doesNotMatch(
+      story,
+      /data-progress|data-story-resume|reader-toolbar|data-reading-block/,
+    );
+    const privacy = await (await fetch(base + '/privacy')).text();
+    assert.match(privacy, /data-privacy-form/);
+    assert.match(privacy, /één jaar/);
+    assert.match(privacy, /hyperpedia-consent-v1/);
+    assert.match(privacy, /hyperpedia_session/);
     for (const author of [schema.author, schema.comment[0].author]) {
       assert.ok(author.url.startsWith(base + '/bronvermelding/'));
       const attribution = await fetch(author.url);
@@ -50,13 +71,21 @@ test('personal library, paths, author URLs and protected path editing preserve t
       404,
     );
     const home = await (await fetch(base)).text();
+    assert.doesNotMatch(home, /data-bookmark=|data-personal-shelf/);
     const homeSchema = JSON.parse(
       home.match(/type="application\/ld\+json">([\s\S]*?)<\/script>/)[1],
     );
-    assert.ok(homeSchema.mainEntity.every((post) => post.author.url));
+    assert.equal(homeSchema.mainEntity['@type'], 'ItemList');
+    assert.equal(homeSchema.mainEntity.itemListElement.length, 6);
+    assert.ok(
+      homeSchema.mainEntity.itemListElement.every((item) =>
+        item.url.startsWith(base + '/posts/'),
+      ),
+    );
     const routeUrl = home.match(/class="path-card" href="([^"]+)"/)[1];
     const routeId = routeUrl.split('/').pop();
     const routeHtml = await (await fetch(base + routeUrl)).text();
+    assert.doesNotMatch(routeHtml, /data-bookmark=/);
     assert.equal((routeHtml.match(/class="path-number"/g) || []).length, 5);
     const inRoute = await (
       await fetch(`${base}/posts/post-0?route=${routeId}`)
@@ -66,7 +95,8 @@ test('personal library, paths, author URLs and protected path editing preserve t
     assert.match(inRoute, /canonical" href="[^"?]+\/posts\/post-0"/);
     const library = await (await fetch(base + '/leeslijst')).text();
     assert.match(library, /robots" content="noindex, follow"/);
-    assert.doesNotMatch(library, /data-reader-id=/);
+    assert.doesNotMatch(library, /data-reader-id=|data-continue-list/);
+    assert.match(library, /deze browser en dit browserprofiel/);
     const catalog = await (
       await fetch(base + '/leeslijst/catalogus.json')
     ).json();
@@ -91,6 +121,17 @@ test('personal library, paths, author URLs and protected path editing preserve t
       redirect: 'manual',
     });
     const cookie = login.headers.get('set-cookie').split(';')[0];
+    assert.equal(
+      (await fetch(base + '/privacy')).headers.get('cache-control'),
+      'no-cache',
+    );
+    for (const method of ['GET', 'HEAD']) {
+      const privacy = await fetch(base + '/privacy', {
+        method,
+        headers: { cookie },
+      });
+      assert.equal(privacy.headers.get('cache-control'), 'private, no-store');
+    }
     const editor = await (
       await fetch(`${base}/admin/leesroutes?id=${routeId}`, {
         headers: { cookie },

@@ -1,12 +1,9 @@
 // Apply before the stylesheet paints; storage may be unavailable in private contexts.
 (() => {
-  let saved;
-  try { saved = localStorage.getItem('theme'); } catch {}
-  let readingSize;
-  try { readingSize = localStorage.getItem('reading-size'); } catch {}
+  const saved = window.hyperpediaStorage.get('theme');
+  const readingSize = window.hyperpediaStorage.get('reading-size');
   document.documentElement.dataset.readingSize = ['normal', 'large', 'extra'].includes(readingSize) ? readingSize : 'normal';
-  let readingWidth;
-  try { readingWidth = localStorage.getItem('reading-width'); } catch {}
+  const readingWidth = window.hyperpediaStorage.get('reading-width');
   document.documentElement.dataset.readingWidth = readingWidth === 'focused' ? 'focused' : 'wide';
   const theme = saved === 'dark' || saved === 'light' ? saved : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   document.documentElement.dataset.theme = theme;

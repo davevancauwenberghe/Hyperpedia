@@ -121,7 +121,7 @@ const { server } = require('../src/server');
     );
     assert.equal(
       await page.locator('meta[name="robots"]').getAttribute('content'),
-      'index, follow',
+      'index, follow, max-image-preview:large',
     );
     await page
       .getByRole('link', { name: 'Volgende pagina', exact: true })
@@ -163,6 +163,7 @@ const { server } = require('../src/server');
     await page.goto(
       base + '/posts/solo?from=' + encodeURIComponent('/?page=2&perPage=24'),
     );
+    await page.locator('.reading-preferences summary').click();
     const wide = await page.locator('.body').boundingBox();
     const parent = await page.locator('.story-content').boundingBox();
     assert.ok(wide.width >= parent.width - 2);

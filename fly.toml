@@ -11,6 +11,8 @@ primary_region = 'ams'
 
 [env]
   SITE_URL = 'https://hyperpedia.app'
+  PRIVACY_CONTROLLER = 'Dave Van Cauwenberghe'
+  PRIVACY_CONTACT_URL = 'https://www.davevancauwenberghe.be/contact/'
 
 [deploy]
 strategy = 'immediate'

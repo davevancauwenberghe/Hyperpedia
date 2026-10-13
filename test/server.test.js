@@ -474,7 +474,7 @@ test('public pages expose SEO metadata, structured data, robots, and sitemap URL
     const sitemap = await fetch(`${base}/sitemap.xml`);
     const sitemapXml = await sitemap.text();
 
-    assert.match(homeHtml, /<meta name="robots" content="index, follow">/);
+    assert.match(homeHtml, /<meta name="robots" content="index, follow, max-image-preview:large">/);
     assert.match(homeHtml, /<script type="application\/ld\+json">/);
     assert.match(postHtml, /<meta property="og:type" content="article">/);
     assert.match(postHtml, /DiscussionForumPosting/);
@@ -513,6 +513,7 @@ test('configured production origin permanently redirects alternate schemes and h
 
     assert.equal(canonical.status, 200);
     assert.match(canonicalHtml, /<link rel="canonical" href="https:\/\/hyperpedia\.app\/posts\/post-1">/);
+    assert.match(canonicalHtml, /property="og:image:secure_url" content="https:\/\/hyperpedia\.app\/social-preview\.png\?v=[^"]+"/);
     assert.equal(alternateHost.status, 308);
     assert.equal(alternateHost.headers.get('location'), 'https://hyperpedia.app/posts/post-1?from=www');
     assert.equal(insecure.status, 308);

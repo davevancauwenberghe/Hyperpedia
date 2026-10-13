@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.1 — 2026-10-13
+
+- Remove save controls from story previews, the continue-reading shelf, progress indicators, reading history and automatic position restoration. Preserve existing saved stories while deleting the old history record.
+- Consolidate all story options in a quiet Leesvoorkeuren disclosure and remember explicit open/closed choices across refreshes and viewport sizes.
+- Clarify that reading lists belong to one browser and browser profile and expire saved entries after one year.
+- Add an unobtrusive consent banner and editable privacy/storage settings. Keep durable reading preferences and anonymous story-count requests off until separate consent; remember acceptance or refusal for 365 days, support revocation across tabs and explain storage purposes and lifetimes.
+- Make administrator login cookies session-only by default, with an explicit seven-day remember-me choice.
+- Retain archive routes, author attribution, social previews and responsive pagination; cover storage migration, consent, expiry, controls and layouts with regressions.
+
+- Configure Dave Van Cauwenberghe and the supplied contact URL for the production privacy notice.
+- Review live crawler access; retain public search/AI access, add a bounded live llms.txt context guide, and preserve complete sitemap coverage.
+- Use explicit archive-list metadata, reply anchor URLs, versioned social-preview images, secure image URLs and large-preview permission for indexable pages.
+- Improve installed-app icons, manifest shortcuts, safe-area spacing and installation guidance inside the existing information dialog. Add an installed-app-only public offline fallback with no visited-page or private-page caching.
+
 ## 0.6.0 — 2026-10-12
 
 ### Personal reading
