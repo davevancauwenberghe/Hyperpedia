@@ -121,7 +121,7 @@ const { server } = require('../src/server');
     );
     assert.equal(
       await page.locator('meta[name="robots"]').getAttribute('content'),
-      'index, follow',
+      'index, follow, max-image-preview:large',
     );
     await page
       .getByRole('link', { name: 'Volgende pagina', exact: true })

@@ -9,6 +9,11 @@
 - Make administrator login cookies session-only by default, with an explicit seven-day remember-me choice.
 - Retain archive routes, author attribution, social previews and responsive pagination; cover storage migration, consent, expiry, controls and layouts with regressions.
 
+- Configure Dave Van Cauwenberghe and the supplied contact URL for the production privacy notice.
+- Review live crawler access; retain public search/AI access, add a bounded live llms.txt context guide, and preserve complete sitemap coverage.
+- Use explicit archive-list metadata, reply anchor URLs, versioned social-preview images, secure image URLs and large-preview permission for indexable pages.
+- Improve installed-app icons, manifest shortcuts, safe-area spacing and installation guidance inside the existing information dialog. Add an installed-app-only public offline fallback with no visited-page or private-page caching.
+
 ## 0.6.0 — 2026-10-12
 
 ### Personal reading

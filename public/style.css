@@ -1,7 +1,7 @@
 :root {
   color-scheme: light;
   --page-width: 144rem;
-  --gutter: clamp(.75rem, 2.5vw, 4rem);
+  --gutter: max(clamp(.75rem, 2.5vw, 4rem), env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
   --reading-size: 1.1rem;
   --bg: #f7f1e8;
   --paper: #fffaf3;
@@ -811,3 +811,15 @@ body { overflow-wrap: anywhere; }
 
 .consent-banner .consent-actions { gap: .5rem; }
 .consent-banner .consent-actions a { font-size: .85rem; padding-inline: 0; }
+
+/* Installed apps and landscape phones keep controls clear of screen cutouts. */
+.site-header { padding-top: calc(.9rem + env(safe-area-inset-top, 0px)); }
+.site-footer { margin-bottom: calc(2rem + env(safe-area-inset-bottom, 0px)); }
+.install-help { margin-top: 1.4rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+.install-help summary { display: flex; align-items: center; gap: .5rem; min-height: 44px; cursor: pointer; list-style: none; font: 700 .95rem/1.4 ui-sans-serif, system-ui, sans-serif; }
+.install-help summary::-webkit-details-marker { display: none; }
+.install-help[open] summary .icon { transform: rotate(90deg); }
+.offline-page { display: grid; place-items: center; min-height: 100vh; min-height: 100dvh; margin-bottom: 0; padding-block: max(2rem, env(safe-area-inset-top)) max(2rem, env(safe-area-inset-bottom)); }
+.offline-page .panel { width: min(100%, 40rem); padding: clamp(1.5rem, 5vw, 3rem); }
+.offline-page h1 { font-size: clamp(1.8rem, 5vw, 2.5rem); line-height: 1.2; }
+.offline-page p { max-width: 45ch; }

@@ -8,7 +8,8 @@
     "dev": "node --watch src/server.js",
     "create-admin": "node scripts/create-admin.js",
     "test": "node --test",
-    "test:browser": "node scripts/check-browser.js && node scripts/check-reading-browser.js"
+    "test:browser": "node scripts/check-browser.js && node scripts/check-reading-browser.js && node scripts/check-pwa-browser.js",
+    "generate:icons": "node scripts/generate-app-icons.js"
   },
   "engines": {
     "node": ">=22"

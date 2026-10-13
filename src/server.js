@@ -9,6 +9,7 @@ const { escapeHtml } = require('./html');
 const { attributionPath, authorData, replyKey } = require('./reading');
 const readingUi = require('./reading-ui');
 const { privacyPage } = require('./privacy');
+const { robotsText, llmsText } = require('./discovery');
 const { createReadingPages, availablePaths } = require('./reading-pages');
 const { createAuth } = require('./auth');
 const { readForm, createLoginBodyReader } = require('./forms');
@@ -19,7 +20,8 @@ const readLoginBody = createLoginBodyReader();
 const POSTS_PER_PAGE = 18;
 
 const layout = (title, content, { admin = false, error = '', notice = '', description = 'Hyperpedia verzamelt herkenbare verhalen over hyperventilatie, stress en lichamelijke sensaties.', canonicalPath = '/', siteUrl = getSiteUrl(), type = 'website', robots = 'index, follow', structuredData = null, post = null } = {}) => {
-  const socialImage = new URL('/social-preview.png', siteUrl).href;
+  const socialImage = new URL(`/social-preview.png?v=${APP_VERSION}`, siteUrl).href;
+  const robotDirectives = robots === 'index, follow' ? `${robots}, max-image-preview:large` : robots;
   const canonicalUrl = new URL(canonicalPath, siteUrl).toString();
   const metaDescription = escapeHtml(description);
   const safeTitle = escapeHtml(`${title} · Hyperpedia`);
@@ -35,11 +37,15 @@ const layout = (title, content, { admin = false, error = '', notice = '', descri
   <script src="/theme.js?v=${APP_VERSION}"></script>
   <link rel="icon" href="/favicon.ico" sizes="any">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=${APP_VERSION}" sizes="180x180">
   <meta name="apple-mobile-web-app-title" content="Hyperpedia">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="application-name" content="Hyperpedia">
   <link rel="manifest" href="/site.webmanifest">
-  <meta name="robots" content="${escapeHtml(robots)}">
+  <meta name="robots" content="${escapeHtml(robotDirectives)}">
+  <link rel="describedby" href="${escapeHtml(new URL('/llms.txt', siteUrl).href)}" type="text/plain">
   <link rel="canonical" href="${escapeHtml(canonicalUrl)}">
   <meta property="og:locale" content="nl_BE">
   <meta property="og:site_name" content="Hyperpedia">
@@ -48,6 +54,7 @@ const layout = (title, content, { admin = false, error = '', notice = '', descri
   <meta property="og:type" content="${escapeHtml(type)}">
   <meta property="og:url" content="${escapeHtml(canonicalUrl)}">
   <meta property="og:image" content="${escapeHtml(socialImage)}">
+${socialImage.startsWith('https:') ? `  <meta property="og:image:secure_url" content="${escapeHtml(socialImage)}">` : ''}
   <meta property="og:image:alt" content="Hyperpedia — verhalen die geruststellen">
   <meta property="og:image:type" content="image/png">
   <meta property="og:image:width" content="1200">
@@ -85,12 +92,14 @@ const layout = (title, content, { admin = false, error = '', notice = '', descri
       <h2 id="info-dialog-title">Een archief voor (h)erkenning</h2>
       <p>Hyperpedia is opgezet om oudere berichten uit de voormalige fora Angstfobietherapie en Therapiepsycholoog te archiveren en toegankelijk te houden, mocht die informatie ooit verdwijnen.</p>
       <p>Omdat beide fora gesloten zijn voor nieuwe posts en reacties, blijft Hyperpedia bewust een leesarchief. Het doel is herkenning en context bieden, zonder dat het verandert in geruststelling zoeken of medisch advies.</p>
+      <details class="install-help"><summary>Hyperpedia op je beginscherm ${icon('right')}</summary><p data-install-guide>Op iPhone of iPad: open het deelmenu en kies Voeg toe aan beginscherm. Op Android: kies App installeren of Toevoegen aan startscherm in het browsermenu.</p><p>Een geïnstalleerde webapp kan eigen browseropslag gebruiken. Je leeslijst wordt ook daar niet automatisch gesynchroniseerd.</p><button class="secondary" type="button" data-install-app hidden>Hyperpedia installeren</button><p class="action-feedback" role="status" data-install-status></p></details>
       <div class="info-dialog-actions"><button type="button" data-info-close>Ik begrijp het</button></div>
     </div>
   </dialog>
   <script src="/app.js?v=${APP_VERSION}"></script>
   <script src="/reading.js?v=${APP_VERSION}"></script>
   <script src="/privacy.js?v=${APP_VERSION}"></script>
+  <script src="/pwa.js?v=${APP_VERSION}"></script>
   <script src="/archive.js?v=${APP_VERSION}"></script>
 </body>
 </html>`;
@@ -150,10 +159,12 @@ function homepageStructuredData(posts, req) {
     url: siteUrl,
     description: 'Een rustige encyclopedie met herkenbare forumverhalen over lichamelijke stresssignalen.',
     potentialAction: { '@type': 'SearchAction', target: `${siteUrl}?q={search_term_string}`, 'query-input': 'required name=search_term_string' },
-    mainEntity: posts.slice(0, 12).map(post => {
-      const url = new URL(`/posts/${encodeURIComponent(post.id)}`, siteUrl).toString();
-      return { '@type': 'DiscussionForumPosting', headline: post.title, datePublished: toIsoDate(post.created_at), author: authorData(post.author, attributionPath(post), siteUrl), url };
-    }),
+    mainEntity: {
+      '@type': 'ItemList',
+      name: 'Verhalen uit het Hyperpedia-archief',
+      itemListElement: posts.map((post, index) => ({ '@type': 'ListItem', position: index + 1,
+        name: post.title, url: new URL(`/posts/${encodeURIComponent(post.id)}`, siteUrl).href })),
+    },
   };
 }
 function postStructuredData(post, req) {
@@ -168,7 +179,7 @@ function postStructuredData(post, req) {
     dateModified: toIsoDate(post.updated_at) || toIsoDate(post.created_at),
     inLanguage: 'nl',
     commentCount: (post.replies || []).length,
-    comment: (post.replies || []).map((reply, index) => ({ '@type': 'Comment', text: reply.body, author: authorData(reply.author || 'Beheerder', attributionPath(post, reply, index), siteUrl), datePublished: toIsoDate(reply.created_at), dateModified: toIsoDate(reply.updated_at) })),
+    comment: (post.replies || []).map((reply, index) => ({ '@type': 'Comment', text: reply.body, author: authorData(reply.author || 'Beheerder', attributionPath(post, reply, index), siteUrl), datePublished: toIsoDate(reply.created_at), dateModified: toIsoDate(reply.updated_at), url: new URL(`/posts/${encodeURIComponent(post.id)}#reply-${replyKey(reply, index)}`, siteUrl).href })),
     mainEntityOfPage: new URL(`/posts/${encodeURIComponent(post.id)}`, siteUrl).href,
     keywords: (post.labels || []).join(', '),
     url: new URL(`/posts/${encodeURIComponent(post.id)}`, siteUrl).toString(),
@@ -311,15 +322,22 @@ async function handler(req, res) {
     return send(res, 'Dit formulier komt van een andere website.', 403);
   }
   if (!['GET', 'POST'].includes(method)) { res.setHeader('Allow', 'GET, HEAD, POST'); return send(res, 'Methode niet toegestaan', 405); }
-  const assets = { '/storage.js': 'application/javascript; charset=utf-8', '/privacy.js': 'application/javascript; charset=utf-8', '/reading.js': 'application/javascript; charset=utf-8', '/archive.js': 'application/javascript; charset=utf-8', '/style.css': 'text/css; charset=utf-8', '/app.js': 'application/javascript; charset=utf-8', '/theme.js': 'application/javascript; charset=utf-8', '/favicon.svg': 'image/svg+xml', '/favicon.ico': 'image/x-icon', '/favicon-48.png': 'image/png', '/apple-touch-icon.png': 'image/png', '/icon-192.png': 'image/png', '/icon-512.png': 'image/png', '/social-preview.png': 'image/png', '/social-preview.svg': 'image/svg+xml', '/site.webmanifest': 'application/manifest+json; charset=utf-8' };
+  const assets = { '/pwa.js': 'application/javascript; charset=utf-8', '/sw.js': 'application/javascript; charset=utf-8', '/offline.html': 'text/html; charset=utf-8', '/offline.js': 'application/javascript; charset=utf-8', '/icon-maskable-192.png': 'image/png', '/icon-maskable-512.png': 'image/png', '/storage.js': 'application/javascript; charset=utf-8', '/privacy.js': 'application/javascript; charset=utf-8', '/reading.js': 'application/javascript; charset=utf-8', '/archive.js': 'application/javascript; charset=utf-8', '/style.css': 'text/css; charset=utf-8', '/app.js': 'application/javascript; charset=utf-8', '/theme.js': 'application/javascript; charset=utf-8', '/favicon.svg': 'image/svg+xml', '/favicon.ico': 'image/x-icon', '/favicon-48.png': 'image/png', '/apple-touch-icon.png': 'image/png', '/icon-192.png': 'image/png', '/icon-512.png': 'image/png', '/social-preview.png': 'image/png', '/social-preview.svg': 'image/svg+xml', '/site.webmanifest': 'application/manifest+json; charset=utf-8' };
   if (assets[pathname]) {
     if (method !== 'GET') { res.setHeader('Allow', 'GET, HEAD'); return send(res, 'Methode niet toegestaan', 405); }
-    if (!req.admin) res.setHeader('Cache-Control', 'public, max-age=3600');
+    if (!req.admin) res.setHeader('Cache-Control', pathname === '/sw.js' ? 'no-cache' : 'public, max-age=3600');
+    if (pathname === '/sw.js') res.setHeader('Service-Worker-Allowed', '/');
+    if (pathname === '/offline.html') res.setHeader('X-Robots-Tag', 'noindex, nofollow');
     return send(res, fs.readFileSync(path.join(__dirname, '..', 'public', pathname.slice(1))), 200, assets[pathname]);
   }
   if (method === 'GET' && pathname === '/privacy') return send(res, layout('Privacy & opslag', privacyPage(), { canonicalPath: '/privacy', siteUrl: getSiteUrl(req), admin: isAdmin(req), robots: 'noindex, follow' }));
   if (await handleReadingPages(req, res, method)) return;
-  if (method === 'GET' && pathname === '/robots.txt') return send(res, `User-agent: *\nAllow: /\nSitemap: ${new URL('/sitemap.xml', getSiteUrl(req)).toString()}\n`, 200, 'text/plain; charset=utf-8');
+  if (method === 'GET' && pathname === '/robots.txt') return send(res, robotsText(getSiteUrl(req)), 200, 'text/plain; charset=utf-8');
+  if (method === 'GET' && pathname === '/llms.txt') {
+    const posts = allPosts();
+    res.setHeader('X-Robots-Tag', 'noindex, follow');
+    return send(res, llmsText(posts, availablePaths(posts), getSiteUrl(req)), 200, 'text/plain; charset=utf-8');
+  }
   if (method === 'GET' && (pathname === '/sitemap.xml' || /^\/sitemaps\/[1-9]\d*\.xml$/.test(pathname))) {
     const archive = allPosts();
     const sitemap = sitemapDocuments(archive, getSiteUrl(req), POSTS_PER_PAGE, ['/leesroutes', ...availablePaths(archive).map(route => readingUi.pathUrl(route))]);

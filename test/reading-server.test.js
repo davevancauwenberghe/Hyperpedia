@@ -75,7 +75,13 @@ test('personal library, paths, author URLs and protected path editing preserve t
     const homeSchema = JSON.parse(
       home.match(/type="application\/ld\+json">([\s\S]*?)<\/script>/)[1],
     );
-    assert.ok(homeSchema.mainEntity.every((post) => post.author.url));
+    assert.equal(homeSchema.mainEntity['@type'], 'ItemList');
+    assert.equal(homeSchema.mainEntity.itemListElement.length, 6);
+    assert.ok(
+      homeSchema.mainEntity.itemListElement.every((item) =>
+        item.url.startsWith(base + '/posts/'),
+      ),
+    );
     const routeUrl = home.match(/class="path-card" href="([^"]+)"/)[1];
     const routeId = routeUrl.split('/').pop();
     const routeHtml = await (await fetch(base + routeUrl)).text();
