@@ -59,9 +59,6 @@
       ...preferences,
       ...clean(read('localStorage', preferenceKey)),
     };
-  // Remove retired progress and ungated preference records without inspecting them.
-  for (const key of [...Object.keys(allowed), 'reading-progress-visible'])
-    remove('localStorage', key);
   const consent = () => {
     // Check shared consent before each optional operation, including the short
     // interval before another tab's storage event has reached this page.

@@ -227,43 +227,27 @@ async function run() {
       null,
     );
     await fresh.close();
-    // Upgrade preserves bookmarks but removes all retired history data.
+    // Invalid saved entries and deleted stories cannot break the current list.
     await page.evaluate(() => {
-      localStorage.removeItem('hyperpedia-reading-v2');
+      const savedAt = Date.now();
       localStorage.setItem(
-        'hyperpedia-reading-v1',
+        'hyperpedia-reading-v2',
         JSON.stringify({
-          version: 1,
+          version: 2,
           saved: [
-            { id: 'story-3', title: '<img src=x onerror=alert(1)>' },
-            { id: 'deleted', title: 'Verwijderd verhaal' },
-            { id: '\ud800', title: 'Ongeldige link' },
-          ],
-          history: [
-            { id: 'story-3', ratio: 0.5, block: 12, updatedAt: Date.now() },
+            { id: 'story-3', title: '<img src=x onerror=alert(1)>', savedAt },
+            { id: 'deleted', title: 'Verwijderd verhaal', savedAt },
+            { id: '\ud800', title: 'Ongeldige link', savedAt },
           ],
         }),
       );
     });
     await page.goto(base + '/leeslijst');
     await page.locator('[data-saved-list] a').waitFor();
-    assert.equal(
-      await page.evaluate(() => localStorage.getItem('hyperpedia-reading-v1')),
-      null,
-    );
     assert.equal(await page.locator('[data-saved-list] img').count(), 0);
     assert.match(
       await page.locator('[data-saved-list]').textContent(),
       /niet meer beschikbaar/,
-    );
-    assert.equal(
-      await page.evaluate(() =>
-        Object.hasOwn(
-          JSON.parse(localStorage.getItem('hyperpedia-reading-v2')),
-          'history',
-        ),
-      ),
-      false,
     );
     await page.route('**/leeslijst/catalogus.json', (route) => route.abort());
     await page.reload();
@@ -351,7 +335,7 @@ async function run() {
     await page.locator('[data-consent-reject]').click();
     await page.setViewportSize({ width: 1440, height: 1000 });
     console.log(
-      'Unified controls, disclosure persistence, bookmarks, consent, expiry, migration and clearing: passed',
+      'Unified controls, disclosure persistence, bookmarks, consent, expiry and clearing: passed',
     );
     const routeUrl = (
       await (await page.request.get(base + '/leesroutes')).text()

@@ -4,6 +4,7 @@
 
 - Shorten the visible privacy page, put technical storage details in a collapsed disclosure, and align its responsive layout with the shared page width.
 - Preserve separate one-year privacy choices, withdrawal, browser-specific reading lists and the configured privacy contact.
+- Remove the pre-consent bookmark import, obsolete preference cleanup and migration-only browser checks; only the current reading-list format is used.
 - Recover the reading list after an unresponsive catalogue request, keeping saved links and removal controls usable.
 - Fix structured-data and attribution reply links for archived identifiers containing spaces, percent signs, Unicode or punctuation; preserve existing reply anchors.
 - Verify the refinements with unit coverage and browser regressions for stalled requests, actual reply targets and expanded privacy details across nine screen widths.
