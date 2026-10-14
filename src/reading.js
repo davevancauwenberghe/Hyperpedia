@@ -17,6 +17,13 @@ function replyKey(reply, index) {
         .digest('hex')
         .slice(0, 24)}`;
 }
+function replyAnchor(key) {
+  return `reply-${encodeURIComponent(key)}`;
+}
+function replyHref(post, key) {
+  // The fragment must decode to the literal HTML id, including its percent signs.
+  return `/posts/${encodeURIComponent(post.id)}#${encodeURIComponent(replyAnchor(key))}`;
+}
 function attributionPath(post, reply, index) {
   const base = `/bronvermelding/${encodeURIComponent(post.id)}`;
   return reply
@@ -100,6 +107,8 @@ function validatePathDefinitions(definitions) {
 }
 module.exports = {
   replyKey,
+  replyAnchor,
+  replyHref,
   attributionPath,
   authorData,
   themeId,

@@ -1,4 +1,5 @@
 const { escapeHtml: e } = require('./html');
+const { icon } = require('./icons');
 
 function privacyPage() {
   const controller = process.env.PRIVACY_CONTROLLER;
@@ -6,19 +7,39 @@ function privacyPage() {
   let contactUrl;
   try {
     const parsed = new URL(contact);
-    if (['https:', 'mailto:'].includes(parsed.protocol))
-      contactUrl = parsed.href;
+    if (['https:', 'mailto:'].includes(parsed.protocol)) contactUrl = parsed.href;
   } catch {}
-  return `<section class="panel privacy-page"><p class="eyebrow">Jouw browser, jouw keuze</p><h1>Privacy &amp; opslag</h1><p>Je kunt het hele archief lezen zonder optionele opslag of verhaaltellingen. Hyperpedia gebruikt geen advertenties, externe analysetools of sociale trackingplug-ins.</p>
-    <form class="privacy-form" data-privacy-form hidden><fieldset><legend>Wat mogen we onthouden?</legend><label class="privacy-option"><input type="checkbox" name="preferences"><span><strong>Leesvoorkeuren over bezoeken heen</strong><span>Thema, tekstgrootte, leesbreedte, focus en of Leesvoorkeuren open of dicht is. Alleen in deze browser, maximaal één jaar. Zonder toestemming blijven keuzes alleen tijdens deze browsersessie beschikbaar.</span></span></label><label class="privacy-option"><input type="checkbox" name="statistics"><span><strong>Anonieme verhaaltelling</strong><span>Tel een geopend verhaal mee in de totale leestelling voor de beheerder. Alleen het totaal per verhaal wordt bewaard, zonder bezoekers-ID, leesgeschiedenis of profiel.</span></span></label></fieldset><div class="consent-actions"><button type="submit">Keuze opslaan</button><button class="secondary" type="button" data-consent-reject>Alles weigeren</button></div><p class="action-feedback" role="status" data-privacy-status></p></form>
-    <noscript><p>JavaScript is uitgeschakeld. Er worden geen optionele voorkeuren opgeslagen of verhaaltellingen verstuurd. Eerder gemaakte keuzes kun je verwijderen via de websitegegevens van je browser.</p></noscript>
-    <h2>Noodzakelijke opslag</h2><p>De privacykeuze zelf blijft één jaar in deze browser staan, ook als je alles weigert. Na dat jaar vragen we opnieuw. Je kunt je keuze hier op ieder moment wijzigen.</p><p><strong>Mijn leeslijst</strong> bewaart alleen verhalen die je zelf met Bewaren toevoegt. Deze lijst hoort bij deze browser en dit browserprofiel, wordt niet naar de server gestuurd en synchroniseert niet met andere browsers of apparaten. Elk bewaard verhaal verloopt na één jaar. Je kunt verhalen afzonderlijk verwijderen of <a href="/leeslijst">je leeslijst wissen</a>. Websitegegevens wissen of een privévenster sluiten kan de lijst verwijderen.</p><p><strong>Beheerlogin</strong> gebruikt een beveiligde sessiecookie (<code>hyperpedia_session</code>). De cookie vervalt wanneer de browsersessie eindigt; alleen als de beheerder zelf kiest om aangemeld te blijven, blijft deze maximaal zeven dagen bewaard. Uitloggen maakt de sessie direct ongeldig.</p>
-    <div class="storage-table-wrap"><table class="storage-table"><caption>Opslag van Hyperpedia</caption><thead><tr><th scope="col">Naam</th><th scope="col">Doel</th><th scope="col">Bewaartermijn</th></tr></thead><tbody><tr><th scope="row"><code>hyperpedia-consent-v1</code></th><td>Privacykeuze, lokaal in je browser</td><td>Eén jaar vanaf je keuze</td></tr><tr><th scope="row"><code>hyperpedia-preferences-v1</code></th><td>Leesvoorkeuren, lokaal met toestemming</td><td>Tot je toestemming vervalt of wordt ingetrokken</td></tr><tr><th scope="row"><code>hyperpedia-session-preferences-v1</code></th><td>Leesvoorkeuren tijdens je browsersessie</td><td>Deze sessie</td></tr><tr><th scope="row"><code>hyperpedia-reading-v2</code></th><td>Zelf bewaarde verhalen, lokaal in je browser</td><td>Eén jaar per verhaal vanaf bewaren</td></tr><tr><th scope="row"><code>hyperpedia-shell-*</code></th><td>Offline-scherm en publieke opmaak van de geïnstalleerde webapp</td><td>Tot een app-update of het wissen van websitegegevens</td></tr><tr><th scope="row"><code>hyperpedia_session</code></th><td>Beheerlogin, cookie voor deze server</td><td>Deze sessie, of zeven dagen als je dat kiest</td></tr></tbody></table></div>
-    <p>Een geïnstalleerde webapp bewaart een klein offline-scherm, opmaak, iconen en voorkeurenscripts. Deze appcache bevat geen bezochte verhaalpagina’s en wordt bij app-updates vervangen. Websitegegevens wissen verwijdert ook deze cache. Een webapp kan eigen browseropslag gebruiken; leeslijsten worden niet automatisch tussen browser en webapp gesynchroniseerd.</p>
-    <h2>Geen leesgeschiedenis</h2><p>Hyperpedia bewaart geen leespositie, voortgang of lijst van geopende verhalen in je browser. De leeslijst bevat alleen jouw eigen bewaarde verhalen.</p>
-    <h2>Server en externe diensten</h2><p>Om een pagina te leveren, ontvangt de server of hostingprovider technische verzoekgegevens, waaronder je IP-adres. De applicatie bewaart geen IP-adres bij de verhaaltellingen. Bij een beheerlogin gebruikt de applicatie het IP-adres tijdelijk om mislukte pogingen te begrenzen. De archiefgegevens en totale verhaaltellingen blijven op de server staan totdat de beheerder ze verwijdert.</p><p>Delen opent alleen op jouw verzoek de deelopties van je browser. Externe links laden pas als je ze opent; de betreffende dienst heeft een eigen privacybeleid.</p>
-    <h2>Browsergegevens beheren</h2><p>Je kunt toestemming intrekken met Alles weigeren. Dat verwijdert de opgeslagen voorkeuren voor toekomstige bezoeken; je huidige sessie en je leeslijst blijven bruikbaar. Via de instellingen van je browser kun je ook alle websitegegevens van Hyperpedia verwijderen.</p>
-    ${controller || contactUrl ? `<h2>Contact</h2>${controller ? `<p>Beheerder: ${e(controller)}</p>` : ''}${contactUrl ? `<p><a href="${e(contactUrl)}">Neem contact op over privacy</a></p>` : ''}` : ''}
+  return `<section class="privacy-page" aria-labelledby="privacy-title">
+    <header class="reading-page-heading"><p class="eyebrow">Jouw browser, jouw keuze</p><h1 id="privacy-title">Privacy &amp; opslag</h1><p>Lees het hele archief zonder optionele opslag. Hyperpedia gebruikt geen advertenties, externe analysetools of sociale tracking.</p></header>
+    <div class="privacy-layout">
+      <section class="panel" aria-labelledby="privacy-choices-title"><h2 id="privacy-choices-title">Jouw keuzes</h2>
+        <form class="privacy-form" data-privacy-form hidden><fieldset><legend class="visually-hidden">Wat mogen we onthouden?</legend>
+          <label class="privacy-option"><input type="checkbox" name="preferences"><span><strong>Leesvoorkeuren onthouden</strong><span>Bewaar je thema en leesinstellingen voor volgende bezoeken, alleen in deze browser. Zonder toestemming gelden ze voor deze browsersessie.</span></span></label>
+          <label class="privacy-option"><input type="checkbox" name="statistics"><span><strong>Anonieme verhaaltelling</strong><span>Tel een geopend verhaal mee. Alleen een totaal per verhaal, zonder bezoekersprofiel of leesgeschiedenis.</span></span></label>
+        </fieldset><p class="privacy-choice-note">Je keuze geldt één jaar. Je kunt deze hier altijd wijzigen of intrekken. Lezen en je leeslijst blijven beschikbaar.</p><div class="consent-actions"><button type="submit">Keuze opslaan</button><button class="secondary" type="button" data-consent-reject>Alles weigeren</button></div><p class="action-feedback" role="status" data-privacy-status></p></form>
+        <noscript><p>JavaScript is uitgeschakeld. Optionele opslag en verhaaltellingen staan uit. Eerdere keuzes kun je wissen via de websitegegevens van je browser.</p></noscript>
+      </section>
+      <section class="panel privacy-overview" aria-labelledby="privacy-summary-title"><h2 id="privacy-summary-title">Goed om te weten</h2>
+        <p><strong>Je leeslijst is van jou.</strong> Bewaarde verhalen blijven maximaal één jaar in deze browser en dit browserprofiel. Ze worden niet naar de server gestuurd of gesynchroniseerd. <a href="/leeslijst">Beheer je leeslijst</a>.</p>
+        <p><strong>Je houdt de controle.</strong> Alles weigeren verwijdert voorkeuren voor volgende bezoeken. Je huidige sessie en leeslijst blijven bruikbaar. Websitegegevens wissen verwijdert ook je leeslijst en privacykeuze.</p>
+        <p><strong>Geen persoonlijke leesgeschiedenis.</strong> Hyperpedia houdt geen leespositie, voortgang of profiel van je bezoeken bij.</p>
+        ${controller || contactUrl ? `<div class="privacy-contact">${controller ? `<p>Beheerder: ${e(controller)}</p>` : ''}${contactUrl ? `<p>Vragen over privacy of een archiefbijdrage? <a href="${e(contactUrl)}">Neem contact op</a>.</p>` : ''}</div>` : ''}
+      </section>
+    </div>
+    <details class="panel privacy-details"><summary>Meer over opslag en techniek ${icon('right')}</summary>
+      <div class="privacy-details-content"><p>De privacykeuze wordt één jaar bewaard, ook als je weigert. Daarna vragen we opnieuw. Met toestemming bewaren we je thema, tekstgrootte, leesbreedte, focus en of Leesvoorkeuren open of dicht is. Intrekken wist deze duurzame voorkeuren en stopt toekomstige verhaaltellingen.</p>
+      <div class="storage-table-wrap"><table class="storage-table"><caption>Opslag van Hyperpedia</caption><thead><tr><th scope="col">Opslag</th><th scope="col">Gebruik</th><th scope="col">Termijn</th></tr></thead><tbody>
+        <tr><th scope="row"><code>hyperpedia-consent-v1</code></th><td>Noodzakelijk: je privacykeuze in deze browser</td><td>Eén jaar vanaf je keuze</td></tr>
+        <tr><th scope="row"><code>hyperpedia-preferences-v1</code></th><td>Optioneel: leesvoorkeuren in deze browser</td><td>Tot toestemming vervalt of wordt ingetrokken</td></tr>
+        <tr><th scope="row"><code>hyperpedia-session-preferences-v1</code></th><td>Functioneel: leesvoorkeuren voor deze sessie</td><td>Deze browsersessie</td></tr>
+        <tr><th scope="row"><code>hyperpedia-reading-v2</code></th><td>Functioneel: zelf bewaarde verhalen in deze browser</td><td>Eén jaar per verhaal</td></tr>
+        <tr><th scope="row"><code>hyperpedia-shell-*</code></th><td>Functioneel: offline-scherm en publieke opmaak van de geïnstalleerde webapp</td><td>Tot een app-update of websitegegevens wissen</td></tr>
+        <tr><th scope="row"><code>hyperpedia_session</code></th><td>Noodzakelijk: beveiligde cookie voor beheerlogin</td><td>Deze sessie; zeven dagen bij zelf gekozen aangemeld blijven</td></tr>
+      </tbody></table></div>
+      <p>Alle browseropslag blijft lokaal. Alleen de beheercookie wordt naar Hyperpedia gestuurd; uitloggen maakt de sessie ongeldig. Een geïnstalleerde webapp bewaart geen bezochte verhaalpagina’s en kan een eigen leeslijst hebben. Een privévenster sluiten kan lokale gegevens verwijderen.</p>
+      <p>De server en hostingprovider ontvangen technische verzoekgegevens, zoals je IP-adres, om pagina’s te leveren. Bij beheerlogin wordt dit tijdelijk gebruikt om mislukte pogingen te begrenzen. Verhaaltellingen bewaren geen IP-adressen: alleen totalen, totdat de beheerder ze verwijdert.</p>
+      <p>Delen opent de deelopties van je browser op jouw verzoek. Externe links laden pas als je ze opent; die diensten hebben hun eigen privacybeleid.</p></div>
+    </details>
   </section>`;
 }
 module.exports = { privacyPage };

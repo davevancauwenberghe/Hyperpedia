@@ -28,6 +28,11 @@ test('public SEO, app assets and machine discovery preserve canonical stories an
           body: 'Een reactie.',
           created_at: '2020-09-03T12:00:00Z',
         },
+        {
+          id: 'legacy /é%#"',
+          author: 'Oude archiefnaam',
+          body: 'Een reactie met een geïmporteerde identifier.',
+        },
       ],
     },
   ]);
@@ -95,6 +100,13 @@ test('public SEO, app assets and machine discovery preserve canonical stories an
     assert.equal(schema.image, undefined);
     assert.equal(schema.comment[0].url, base + '/posts/story#reply-id-reply');
     assert.ok(html.includes('id="reply-id-reply"'));
+    for (const reply of schema.comment) {
+      const url = new URL(reply.url);
+      const target = decodeURIComponent(url.hash.slice(1));
+      assert.ok(html.includes(`id="${target}"`), 'Reply URL must target the rendered reply');
+      const attribution = await (await fetch(reply.author.url)).text();
+      assert.ok(attribution.includes(`href="${url.pathname}${url.hash}"`));
+    }
     assert.equal((await fetch(schema.author.url)).status, 200);
     const xml = await (await fetch(base + '/sitemap.xml')).text();
     assert.doesNotMatch(xml, /offline|privacy|llms.txt|leeslijst/);

@@ -6,7 +6,7 @@ const { isoDate: toIsoDate, sitemapDocuments } = require('./seo');
 const { version: APP_VERSION } = require('../package.json');
 const { icon } = require('./icons');
 const { escapeHtml } = require('./html');
-const { attributionPath, authorData, replyKey } = require('./reading');
+const { attributionPath, authorData, replyKey, replyAnchor, replyHref } = require('./reading');
 const readingUi = require('./reading-ui');
 const { privacyPage } = require('./privacy');
 const { robotsText, llmsText } = require('./discovery');
@@ -179,7 +179,7 @@ function postStructuredData(post, req) {
     dateModified: toIsoDate(post.updated_at) || toIsoDate(post.created_at),
     inLanguage: 'nl',
     commentCount: (post.replies || []).length,
-    comment: (post.replies || []).map((reply, index) => ({ '@type': 'Comment', text: reply.body, author: authorData(reply.author || 'Beheerder', attributionPath(post, reply, index), siteUrl), datePublished: toIsoDate(reply.created_at), dateModified: toIsoDate(reply.updated_at), url: new URL(`/posts/${encodeURIComponent(post.id)}#reply-${replyKey(reply, index)}`, siteUrl).href })),
+    comment: (post.replies || []).map((reply, index) => ({ '@type': 'Comment', text: reply.body, author: authorData(reply.author || 'Beheerder', attributionPath(post, reply, index), siteUrl), datePublished: toIsoDate(reply.created_at), dateModified: toIsoDate(reply.updated_at), url: new URL(replyHref(post, replyKey(reply, index)), siteUrl).href })),
     mainEntityOfPage: new URL(`/posts/${encodeURIComponent(post.id)}`, siteUrl).href,
     keywords: (post.labels || []).join(', '),
     url: new URL(`/posts/${encodeURIComponent(post.id)}`, siteUrl).toString(),
@@ -245,7 +245,7 @@ function renderReplies(post, { admin = false } = {}) {
   const replies = post.replies || [];
   if (!replies.length) return '';
 
-  return `<section class="replies" aria-labelledby="replies-title"><h2 id="replies-title">Reacties</h2>${replies.map((reply, index) => `<article class="reply" id="reply-${escapeHtml(encodeURIComponent(replyKey(reply, index)))}"><p class="eyebrow">Reactie op ${escapeHtml(reply.originalReplier || post.author)}</p><h3><a class="author-link" href="${attributionPath(post, reply, index)}">${escapeHtml(reply.author || 'Beheerder')}</a></h3><div>${renderText(reply.body)}</div>${admin ? `<div class="reply-actions"><a class="button secondary" href="/admin/reply/${encodeURIComponent(post.id)}/${encodeURIComponent(reply.id)}/edit">Reactie bewerken</a><form method="post" action="/admin/reply/${encodeURIComponent(post.id)}/${encodeURIComponent(reply.id)}/delete"><button class="danger" type="submit">Reactie verwijderen</button></form></div>` : ''}</article>`).join('')}</section>`;
+  return `<section class="replies" aria-labelledby="replies-title"><h2 id="replies-title">Reacties</h2>${replies.map((reply, index) => `<article class="reply" id="${escapeHtml(replyAnchor(replyKey(reply, index)))}"><p class="eyebrow">Reactie op ${escapeHtml(reply.originalReplier || post.author)}</p><h3><a class="author-link" href="${attributionPath(post, reply, index)}">${escapeHtml(reply.author || 'Beheerder')}</a></h3><div>${renderText(reply.body)}</div>${admin ? `<div class="reply-actions"><a class="button secondary" href="/admin/reply/${encodeURIComponent(post.id)}/${encodeURIComponent(reply.id)}/edit">Reactie bewerken</a><form method="post" action="/admin/reply/${encodeURIComponent(post.id)}/${encodeURIComponent(reply.id)}/delete"><button class="danger" type="submit">Reactie verwijderen</button></form></div>` : ''}</article>`).join('')}</section>`;
 }
 
 function storySidebar(post, archive) {

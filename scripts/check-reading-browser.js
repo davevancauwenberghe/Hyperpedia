@@ -28,6 +28,7 @@ store.savePosts(
         author: 'Andere naam',
         body: 'Een gearchiveerde reactie.',
       },
+      ...(i === 0 ? [{ id: 'legacy /é%#"', author: 'Oude archiefnaam', body: 'Een geïmporteerde reactie.' }] : []),
     ],
   })),
 );
@@ -64,6 +65,12 @@ async function run() {
     assert.equal(await page.locator('[data-personal-shelf]').count(), 0);
     await page.locator('[data-consent-reject]').click();
     await page.goto(base + '/posts/story-0');
+    const schema = await page.locator('script[type="application/ld+json"]').evaluate(el => JSON.parse(el.textContent));
+    await page.goto(schema.comment[1].url);
+    assert.equal(await page.locator('.reply:target').count(), 1);
+    await page.goto(schema.comment[1].author.url);
+    await page.locator('.attribution-page .back-link').click();
+    assert.equal(await page.locator('.reply:target').count(), 1);
     assert.equal(
       await page.locator('.reading-preferences').evaluate((el) => el.open),
       false,
@@ -272,6 +279,24 @@ async function run() {
       '<img src=x onerror=alert(1)>',
     );
     await page.unroute('**/leeslijst/catalogus.json');
+    const stalledContext = await browser.newContext();
+    await stalledContext.addInitScript(() => {
+      const now = Date.now();
+      localStorage.setItem('hyperpedia-consent-v1', JSON.stringify({ version: 1, preferences: false, statistics: false, decidedAt: now, expiresAt: now + 365 * 24 * 3600 * 1000 }));
+      localStorage.setItem('hyperpedia-reading-v2', JSON.stringify({ version: 2, saved: [{ id: 'story-0', title: 'Bewaard verhaal', savedAt: now }] }));
+    });
+    const stalledPage = await stalledContext.newPage();
+    await stalledPage.clock.install();
+    await stalledPage.route('**/leeslijst/catalogus.json', () => {});
+    await stalledPage.goto(base + '/leeslijst');
+    await stalledPage.clock.runFor(8001);
+    await stalledPage.locator('[data-remove-bookmark]').waitFor();
+    assert.equal(await stalledPage.locator('[data-saved-list] a').getAttribute('href'), '/posts/story-0');
+    assert.match(await stalledPage.locator('[data-library-status]').textContent(), /actuele verhalenlijst/);
+    await stalledPage.locator('[data-remove-bookmark]').click();
+    assert.equal(await stalledPage.locator('[data-remove-bookmark]').count(), 0);
+    await stalledPage.unrouteAll({ behavior: 'ignoreErrors' });
+    await stalledContext.close();
     await page.locator('[data-clear-library]').click();
     await page.locator('[data-cancel-clear]').click();
     assert.equal(await page.locator('[data-remove-bookmark]').count(), 2);
@@ -352,6 +377,14 @@ async function run() {
           false,
           `${path} overflows at ${width}px`,
         );
+        if (path === '/privacy') {
+          const widths = await page.evaluate(() => ({ main: document.querySelector('main').getBoundingClientRect().width, privacy: document.querySelector('.privacy-page').getBoundingClientRect().width }));
+          assert.ok(Math.abs(widths.main - widths.privacy) < 1, 'Privacy must use the shared page width');
+          assert.equal(await page.locator('.privacy-details').evaluate(el => el.open), false);
+          await page.locator('.privacy-details summary').click();
+          assert.equal(await page.locator('.storage-table').isVisible(), true);
+          assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, `Expanded privacy details overflow at ${width}px`);
+        }
       }
     }
     await page.goto(base + '/login');

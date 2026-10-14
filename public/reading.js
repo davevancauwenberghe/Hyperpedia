@@ -232,8 +232,11 @@
     });
   syncBookmarks();
   if (document.querySelector('[data-saved-list]')) {
+    const controller = new AbortController();
+    const deadline = setTimeout(() => controller.abort(), 8000);
     fetch('/leeslijst/catalogus.json', {
       headers: { Accept: 'application/json' },
+      signal: controller.signal,
     })
       .then((response) => {
         if (!response.ok) throw new Error('Catalog unavailable');
@@ -251,6 +254,7 @@
         catalogFailed = true;
       })
       .finally(() => {
+        clearTimeout(deadline);
         catalogLoaded = true;
         renderLibrary();
         if (catalogFailed)
