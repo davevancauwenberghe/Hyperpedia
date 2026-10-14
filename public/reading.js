@@ -1,6 +1,5 @@
 (() => {
   const key = 'hyperpedia-reading-v2';
-  const legacyKey = 'hyperpedia-reading-v1';
   const year = window.hyperpediaStorage.year;
   const empty = () => ({ version: 2, saved: [] });
   function validId(id) {
@@ -57,23 +56,9 @@
   try {
     storage = window.localStorage;
     const current = storage.getItem(key);
-    const legacy = storage.getItem(legacyKey);
-    if (!current && legacy) {
-      let previous;
-      try {
-        previous = JSON.parse(legacy);
-      } catch {}
-      state = normalize({
-        version: 2,
-        saved:
-          previous?.version === 1 && Array.isArray(previous.saved)
-            ? previous.saved.map((entry) => ({ ...entry, savedAt: Date.now() }))
-            : [],
-      });
-      storage.setItem(key, JSON.stringify(state));
-    } else state = storedState() || empty();
-    // One-time migration keeps saved stories and discards the retired reading record.
-    if (legacy) storage.removeItem(legacyKey);
+    try {
+      state = normalize(JSON.parse(current || 'null'));
+    } catch {}
     if (current && current !== JSON.stringify(state))
       storage.setItem(key, JSON.stringify(state));
   } catch {
@@ -232,8 +217,11 @@
     });
   syncBookmarks();
   if (document.querySelector('[data-saved-list]')) {
+    const controller = new AbortController();
+    const deadline = setTimeout(() => controller.abort(), 8000);
     fetch('/leeslijst/catalogus.json', {
       headers: { Accept: 'application/json' },
+      signal: controller.signal,
     })
       .then((response) => {
         if (!response.ok) throw new Error('Catalog unavailable');
@@ -251,6 +239,7 @@
         catalogFailed = true;
       })
       .finally(() => {
+        clearTimeout(deadline);
         catalogLoaded = true;
         renderLibrary();
         if (catalogFailed)

@@ -777,14 +777,23 @@ body { overflow-wrap: anywhere; }
 .reader-storage-note { color: var(--muted); margin: 1rem 0 0; font: .75rem/1.5 ui-sans-serif, system-ui, sans-serif; }
 .focus-summary { color: var(--muted); font-weight: 400; }
 .footer-actions { flex-wrap: wrap; }
-.privacy-page { max-width: 65rem; margin: 2rem auto; }
+.privacy-page { margin-block: 2rem; }
 .privacy-page p { line-height: 1.7; }
-.privacy-page h2 { margin-top: 2rem; }
-.privacy-form { margin-block: 2rem; }
+.privacy-layout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: clamp(1rem, 2vw, 1.5rem); }
+.privacy-layout > .panel { width: 100%; margin: 0; }
+.privacy-page h2 { margin: 0 0 .75rem; font-size: clamp(1.4rem, 2vw, 1.8rem); }
+.privacy-form { margin: 0; }
 .privacy-form fieldset { padding: 0; margin: 0 0 1.2rem; border: 0; }
-.privacy-form legend { font-size: 1.35rem; margin-bottom: .5rem; }
 .privacy-option { display: flex; gap: .8rem; align-items: flex-start; padding: 1rem 0; font: .9rem/1.6 ui-sans-serif, system-ui, sans-serif; }
 .privacy-option span span { display: block; color: var(--muted); }
+.privacy-choice-note { color: var(--muted); font: .85rem/1.6 ui-sans-serif, system-ui, sans-serif; }
+.privacy-contact { margin-top: 1.5rem; padding-top: .5rem; border-top: 1px solid var(--line); font: .85rem/1.6 ui-sans-serif, system-ui, sans-serif; }
+.privacy-details { margin: 1.5rem 0 0; }
+.privacy-details summary { display: flex; align-items: center; justify-content: space-between; gap: .75rem; min-height: 44px; cursor: pointer; list-style: none; font: 700 .95rem/1.5 ui-sans-serif, system-ui, sans-serif; }
+.privacy-details summary::-webkit-details-marker { display: none; }
+.privacy-details[open] summary .icon { transform: rotate(90deg); }
+.privacy-details-content { padding-top: 1rem; }
+@media (max-width: 959px) { .privacy-layout { grid-template-columns: minmax(0, 1fr); } }
 .privacy-option input, .checkbox-field input { width: 1.15rem; height: 1.15rem; flex: 0 0 auto; margin: .25rem 0 0; accent-color: var(--accent); }
 .checkbox-field { display: flex; gap: .7rem; font-size: .85rem; }
 .consent-banner { position: fixed; bottom: max(1rem, env(safe-area-inset-bottom)); right: var(--gutter); z-index: 4; max-width: min(37rem, calc(100vw - 2 * var(--gutter))); padding: 1rem 1.2rem; border: 1px solid var(--line); border-radius: 1rem; background: var(--paper-strong); box-shadow: 0 8px 30px color-mix(in srgb, var(--ink) 12%, transparent); font: .85rem/1.6 ui-sans-serif, system-ui, sans-serif; }

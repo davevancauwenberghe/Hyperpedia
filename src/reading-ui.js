@@ -1,5 +1,6 @@
 const { escapeHtml: e } = require('./html');
 const { icon } = require('./icons');
+const { replyHref } = require('./reading');
 const pathUrl = (route) => `/leesroutes/${encodeURIComponent(route.id)}`;
 const storyUrl = (post, route) =>
   `/posts/${encodeURIComponent(post.id)}${route ? `?route=${encodeURIComponent(route.id)}` : ''}`;
@@ -39,7 +40,7 @@ function storyTools(post) {
   return `${bookmarkButton(post)}<button class="focus-button secondary" type="button" data-focus-toggle aria-pressed="false" hidden>${icon('focus')} <span data-focus-label>Focus</span></button>`;
 }
 function attributionPage(post, name, reply, replyKey) {
-  return `<section class="panel attribution-page"><a class="back-link" href="/posts/${encodeURIComponent(post.id)}${reply ? `#reply-${e(encodeURIComponent(replyKey))}` : ''}">${icon('left')} Terug naar het verhaal</a><p class="eyebrow">Bronvermelding · ${reply ? 'gearchiveerde reactie' : 'gearchiveerd verhaal'}</p><h1>${e(name)}</h1><p>De naam zoals bewaard bij ${reply ? 'deze reactie' : 'dit verhaal'} in het Hyperpedia-archief.</p><dl class="attribution-details"><div><dt>Bijdrage bij</dt><dd><a href="/posts/${encodeURIComponent(post.id)}">${e(post.title)}</a></dd></div><div><dt>Rol bij deze bijdrage</dt><dd>${reply ? 'Naam bij de reactie' : 'Naam bij het oorspronkelijke verhaal'}</dd></div></dl><p class="attribution-note">Deze bronvermelding hoort bij één archiefbijdrage. Het is geen gebruikersaccount of geverifieerde biografie. Dezelfde weergegeven naam bij andere verhalen hoeft niet dezelfde persoon te zijn.</p></section>`;
+  return `<section class="panel attribution-page"><a class="back-link" href="${e(reply ? replyHref(post, replyKey) : storyUrl(post))}">${icon('left')} Terug naar het verhaal</a><p class="eyebrow">Bronvermelding · ${reply ? 'gearchiveerde reactie' : 'gearchiveerd verhaal'}</p><h1>${e(name)}</h1><p>De naam zoals bewaard bij ${reply ? 'deze reactie' : 'dit verhaal'} in het Hyperpedia-archief.</p><dl class="attribution-details"><div><dt>Bijdrage bij</dt><dd><a href="/posts/${encodeURIComponent(post.id)}">${e(post.title)}</a></dd></div><div><dt>Rol bij deze bijdrage</dt><dd>${reply ? 'Naam bij de reactie' : 'Naam bij het oorspronkelijke verhaal'}</dd></div></dl><p class="attribution-note">Deze bronvermelding hoort bij één archiefbijdrage. Het is geen gebruikersaccount of geverifieerde biografie. Dezelfde weergegeven naam bij andere verhalen hoeft niet dezelfde persoon te zijn.</p></section>`;
 }
 function pathEditor(routes, posts, definitions, revision, current) {
   const selected = current || {
