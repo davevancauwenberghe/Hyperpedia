@@ -33,6 +33,10 @@ jobs:
           s.savePosts([{id:'migration-story', title:'Original story', body:'Original text', replies:[{body:'Original reply'}]}]);
           s.recordPostRead('migration-story');
           JS
+          # The source Fly volume is root-owned; the default image must still read it.
+          docker compose create hyperpedia
+          migration_image="$(docker compose images -q hyperpedia)"
+          docker run --rm --network none --mount type=bind,src=/srv/hyperpedia/data,dst=/data -e REQUIRE_EXISTING_DATA=true "$migration_image" node scripts/check-data.js
           sudo chown -R 1000:1000 /srv/hyperpedia/data
           docker compose up -d
       - name: Check non-root startup, original login and persistence after restart
