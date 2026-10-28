@@ -158,4 +158,25 @@ async function verifyPasswordAsync(password, admin) {
   const hash = await new Promise((resolve, reject) => crypto.pbkdf2(password, admin.salt, admin.iterations, 32, 'sha256', (error, result) => error ? reject(error) : resolve(result)));
   return crypto.timingSafeEqual(hash, Buffer.from(admin.hash, 'hex'));
 }
-module.exports = { allPosts, savePosts, recordPostRead, purgePostRead, getStats, getAdmin, saveAdmin, verifyPassword, verifyPasswordAsync, getPathDefinitions, savePathDefinitions, getPathExport };
+function inspectExistingData() {
+  const posts = allPosts();
+  if (!posts.length) {
+    throw new Error(`No stories found in ${dataDir}. Restore the existing Fly data before starting this deployment.`);
+  }
+  const admin = getAdmin();
+  if (!passwordRecordValid(admin) || typeof admin.username !== 'string' || !admin.username.trim()) {
+    throw new Error(`No valid administrator record found in ${dataDir}. Copy the original admin file; do not create a replacement during migration.`);
+  }
+  // Validate optional stores without migrating counts or changing any files.
+  getReadMetrics();
+  const routes = getPathDefinitions();
+  return {
+    stories: posts.length,
+    replies: posts.reduce((total, post) => total + post.replies.length, 0),
+    curatedRoutes: routes.length,
+    administrator: 'configured',
+  };
+}
+if (process.env.REQUIRE_EXISTING_DATA === 'true') inspectExistingData();
+
+module.exports = { allPosts, savePosts, recordPostRead, purgePostRead, getStats, getAdmin, saveAdmin, verifyPassword, verifyPasswordAsync, getPathDefinitions, savePathDefinitions, getPathExport, inspectExistingData };

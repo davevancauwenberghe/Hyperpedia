@@ -48,3 +48,35 @@ test('login cookies are session-only unless the administrator explicitly request
   assert.doesNotMatch(auth.createSession(request), /Max-Age|Expires/);
   assert.match(auth.createSession(request, true), /Max-Age=604800/);
 });
+
+test('Apache client addresses require explicit trust and ignore arbitrary forwarding headers', () => {
+  const previous = process.env.TRUST_APACHE_PROXY;
+  const previousFly = process.env.FLY_APP_NAME;
+  delete process.env.FLY_APP_NAME;
+  try {
+    const auth = createAuth();
+    const request = {
+      socket: { remoteAddress: '172.18.0.1' },
+      headers: {
+        'x-hyperpedia-client-ip': '192.0.2.10',
+        'x-forwarded-for': '192.0.2.99',
+        'cf-connecting-ip': '192.0.2.98',
+      },
+    };
+    delete process.env.TRUST_APACHE_PROXY;
+    assert.equal(auth.loginKey(request), '172.18.0.1');
+    process.env.TRUST_APACHE_PROXY = 'true';
+    assert.equal(auth.loginKey(request), '192.0.2.10');
+    request.headers['x-hyperpedia-client-ip'] = '2001:db8::10';
+    assert.equal(auth.loginKey(request), '2001:db8::10');
+    for (const value of ['bad', '192.0.2.10, 192.0.2.11', ['192.0.2.10']]) {
+      request.headers['x-hyperpedia-client-ip'] = value;
+      assert.equal(auth.loginKey(request), '172.18.0.1');
+    }
+  } finally {
+    if (previous === undefined) delete process.env.TRUST_APACHE_PROXY;
+    else process.env.TRUST_APACHE_PROXY = previous;
+    if (previousFly === undefined) delete process.env.FLY_APP_NAME;
+    else process.env.FLY_APP_NAME = previousFly;
+  }
+});

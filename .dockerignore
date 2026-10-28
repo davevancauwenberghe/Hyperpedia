@@ -3,3 +3,10 @@ node_modules
 npm-debug.log
 data
 .env
+.env.*
+*.tar
+*.tar.gz
+*.tgz
+*.pem
+*.key
+backups

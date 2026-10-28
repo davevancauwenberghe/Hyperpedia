@@ -17,6 +17,14 @@ coverage/
 tmp/
 *.tmp
 
+# Private migration archives and TLS keys
+backups/
+*.tar
+*.tar.gz
+*.tgz
+*.pem
+*.key
+
 # Editor and operating-system files
 .DS_Store
 .idea/
