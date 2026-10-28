@@ -180,6 +180,17 @@ header; `TRUST_APACHE_PROXY` must only be enabled with that vhost and the privat
 backend port. Existing `mod_remoteip` handling for trusted Cloudflare addresses
 continues to apply. Without it, login limits group clients by Cloudflare edge IP.
 
+Before changing DNS, verify Apache's HTTPS endpoint locally on the VPS. This uses
+Cloudflare's public RSA Origin CA root to verify the RSA certificate selected
+above; it does not disable TLS verification or change the system trust store:
+
+```bash
+curl --fail --silent --show-error --output /tmp/cloudflare-origin-rsa-root.pem https://developers.cloudflare.com/ssl/static/origin_ca_rsa_root.pem
+curl --fail --cacert /tmp/cloudflare-origin-rsa-root.pem --resolve hyperpedia.app:443:127.0.0.1 https://hyperpedia.app/healthz
+```
+
+Continue after this returns `ok` and the backend data/login checks have passed.
+
 ## 5. Point Cloudflare at the VPS
 
 In the `hyperpedia.app` DNS zone, change the apex `A` record to the VPS's public
