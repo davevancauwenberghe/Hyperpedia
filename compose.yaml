@@ -2,6 +2,7 @@
 services:
   hyperpedia:
     build: .
+    user: "1000:1000"
     restart: unless-stopped
     init: true
     mem_limit: 256m

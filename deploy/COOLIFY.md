@@ -83,8 +83,10 @@ sudo ls -la /srv/hyperpedia/data
 BASH
 ```
 
-The image runs as the Node user, UID/GID 1000. Matching ownership is needed because
-the JSON files are private and atomic writes need a writable directory.
+Compose runs the app as the Node user, UID/GID 1000. Matching ownership is needed because
+the JSON files are private and atomic writes need a writable directory. The
+Dockerfile's default user remains compatible with the old root-owned Fly volume;
+the non-root user is selected explicitly by the new Compose deployment.
 
 ## 3. Create the Coolify application
 

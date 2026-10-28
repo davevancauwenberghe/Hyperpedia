@@ -13,8 +13,9 @@ async function healthy() {
   throw new Error('Container did not become healthy');
 }
 async function check() {
-  const headers = { host: 'hyperpedia.app', 'x-forwarded-proto': 'https' };
-  const story = await fetch(base + '/posts/migration-story', { headers });
+  const headers = { 'x-forwarded-host': 'hyperpedia.app', 'x-forwarded-proto': 'https' };
+  // Never follow the production canonical URL from this disposable local test.
+  const story = await fetch(base + '/posts/migration-story', { headers, redirect: 'manual' });
   assert.equal(story.status, 200);
   assert.match(await story.text(), /Original text/);
   const login = await fetch(base + '/login', {
