@@ -1,0 +1,49 @@
+name: Container persistence
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SESSION_SECRET: container-test-secret-not-a-production-secret-64-characters-long
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Validate and build the Coolify Compose image
+        run: |
+          docker compose config --quiet
+          docker compose build
+      - name: Reject an empty migration and import a representative data directory
+        run: |
+          sudo install -d -m 0700 -o 1000 -g 1000 /srv/hyperpedia/data
+          if docker compose run --rm -T --no-deps hyperpedia node scripts/check-data.js; then
+            echo 'An empty migrated volume must not be accepted.' >&2
+            exit 1
+          fi
+          sudo env DATA_DIR=/srv/hyperpedia/data REQUIRE_EXISTING_DATA=false "$(command -v node)" <<'JS'
+          const s = require('./src/store');
+          s.saveAdmin('migration-admin', 'original-migration-password');
+          s.savePosts([{id:'migration-story', title:'Original story', body:'Original text', replies:[{body:'Original reply'}]}]);
+          s.recordPostRead('migration-story');
+          JS
+          # The source Fly volume is root-owned; the default image must still read it.
+          docker compose create hyperpedia
+          migration_image="$(docker compose images -q hyperpedia)"
+          docker run --rm --network none --mount type=bind,src=/srv/hyperpedia/data,dst=/data -e REQUIRE_EXISTING_DATA=true "$migration_image" node scripts/check-data.js
+          sudo chown -R 1000:1000 /srv/hyperpedia/data
+          docker compose up -d
+      - name: Check non-root startup, original login and persistence after restart
+        run: node scripts/check-container.js
+      - name: Container logs on failure
+        if: failure()
+        run: docker compose logs --tail=60
+      - name: Remove test containers
+        if: always()
+        run: docker compose down

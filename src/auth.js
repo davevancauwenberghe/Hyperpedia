@@ -49,6 +49,10 @@ function createAuth() {
     req.sessionId = req.admin ? id : undefined;
   }
   function loginKey(req) {
+    // Enable only behind the supplied Apache vhost and a loopback-only port.
+    const apacheIp = process.env.TRUST_APACHE_PROXY === 'true' &&
+      req.headers['x-hyperpedia-client-ip'];
+    if (typeof apacheIp === 'string' && net.isIP(apacheIp)) return apacheIp;
     // Fly supplies this header. Untrusted forwarded headers cannot bypass a local limit.
     const flyIp = process.env.FLY_APP_NAME && req.headers['fly-client-ip'];
     return typeof flyIp === 'string' && net.isIP(flyIp)
