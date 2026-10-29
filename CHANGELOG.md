@@ -6,7 +6,6 @@
 - Run the container as the Node user and include an image health check; keep data and migration archives out of the build context.
 - Require an existing populated archive and valid admin record for the migration deployment, validate optional stores, and provide a read-only data check.
 - Support Apache's explicitly trusted, overwritten client-address header for login limits without trusting arbitrary forwarding headers.
-- Document the complete Fly volume export, checksum verification, private restore, origin TLS setup, DNS cutover and retention of the old volume for recovery.
 - Add data-copy and proxy-trust regressions, plus a container CI check for empty-volume rejection, original admin login and persistence across restart.
 
 ## 0.6.2 — 2026-10-14

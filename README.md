@@ -4,7 +4,7 @@ Een rustig Nederlandstalig leesarchief over hyperventilatie, overprikkeling, str
 
 ## Coolify op de VPS
 
-Gebruik [de migratiehandleiding](deploy/COOLIFY.md) om de volledige Fly-volume-inhoud te bewaren en Hyperpedia via Coolify achter de bestaande Apache-proxy te draaien.
+De Compose-configuratie draait Hyperpedia via Coolify achter een bestaande Apache-proxy.
 
 - Repository: `davevancauwenberghe/Hyperpedia`; build pack **Docker Compose**, bestand `/compose.yaml`.
 - Apache behoudt poorten 80/443. De applicatie publiceert alleen `127.0.0.1:18081` naar containerpoort 8080.
