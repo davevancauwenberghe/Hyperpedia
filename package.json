@@ -9,7 +9,7 @@
     "create-admin": "node scripts/create-admin.js",
     "check:data": "node scripts/check-data.js",
     "test": "node --test",
-    "test:browser": "node scripts/check-browser.js && node scripts/check-reading-browser.js && node scripts/check-pwa-browser.js && node scripts/check-security-browser.js",
+    "test:browser": "node --test --test-concurrency=2 scripts/check-browser.js scripts/check-reading-browser.js scripts/check-pwa-browser.js scripts/check-security-browser.js",
     "generate:icons": "node scripts/generate-app-icons.js",
     "lint": "eslint src public scripts test eslint.config.js",
     "format": "prettier --write \"{src,public,scripts,test}/**/*.js\" \"*.{js,json,yaml}\" \".github/**/*.{yml,yaml}\"",

@@ -204,6 +204,9 @@ const { server } = require('../src/server');
     assert.equal(await page.locator('[data-post-grid] > .card').count(), 30);
     console.log('Failed adaptive fetch preserves readable content and recovers: passed');
     await page.setViewportSize({ width: 1440, height: 1000 });
+    // Start the delayed-response scenario at a known offset; the preceding
+    // five-column reflow can legitimately change which row is first in view.
+    await page.goto(base + '/?page=2&perPage=24');
     await settle(24, 2);
     let releaseResponse;
     let requestStarted;
