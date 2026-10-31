@@ -7,7 +7,7 @@ permissions:
   contents: read
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     strategy:
       matrix:
@@ -22,9 +22,11 @@ jobs:
       - run: npm run lint
       - run: npm run format:check
       - run: npm test
-      - name: Install browser
+      - name: Check runner browser
         if: matrix.node == 24
-        run: npx playwright install --with-deps chromium
+        run: google-chrome --version
       - name: Browser regression checks
         if: matrix.node == 24
+        env:
+          BROWSER_EXECUTABLE: /usr/bin/google-chrome
         run: npm run test:browser
