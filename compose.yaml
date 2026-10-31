@@ -1,0 +1,27 @@
+# Coolify's server proxy stays disabled: Apache already owns ports 80 and 443.
+services:
+  hyperpedia:
+    build: .
+    user: "1000:1000"
+    restart: unless-stopped
+    init: true
+    mem_limit: 256m
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "8080"
+      DATA_DIR: /data
+      SITE_URL: https://hyperpedia.app
+      SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET in Coolify before deploying}
+      PRIVACY_CONTROLLER: Dave Van Cauwenberghe
+      PRIVACY_CONTACT_URL: https://www.davevancauwenberghe.be/contact/
+      REQUIRE_EXISTING_DATA: "true"
+      TRUST_APACHE_PROXY: "true"
+    ports:
+      - "127.0.0.1:18081:8080"
+    volumes:
+      - type: bind
+        source: /srv/hyperpedia/data
+        target: /data
+        bind:
+          create_host_path: false

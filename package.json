@@ -1,12 +1,13 @@
 {
   "name": "hyperpedia",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "description": "Een rustige encyclopedie met herkenbare verhalen rond hyperventilatie, stress en zenuwstelselontregeling.",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "create-admin": "node scripts/create-admin.js",
+    "check:data": "node scripts/check-data.js",
     "test": "node --test",
     "test:browser": "node scripts/check-browser.js && node scripts/check-reading-browser.js && node scripts/check-pwa-browser.js",
     "generate:icons": "node scripts/generate-app-icons.js"
