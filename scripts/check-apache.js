@@ -128,7 +128,8 @@ async function eventually(check) {
       '127.0.0.1',
       'Untrusted direct clients cannot spoof CF-Connecting-IP',
     );
-    assert.equal(direct.forwarded['x-forwarded-host'], undefined);
+    // mod_proxy rebuilds this header from Host after the injected value is removed.
+    assert.equal(direct.forwarded['x-forwarded-host'], 'hyperpedia.app');
     assert.equal(direct.forwarded['x-forwarded-proto'], 'https');
     assert.equal(direct.headers['strict-transport-security'], 'max-age=31536000');
     // Simulate the edge on loopback in this disposable copy only, never the shipped vhost.
