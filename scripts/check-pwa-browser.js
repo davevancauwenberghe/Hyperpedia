@@ -43,9 +43,7 @@ async function run() {
     await page.goto(base);
     await page.locator('[data-consent-reject]').click();
     assert.equal(
-      await page.evaluate(
-        async () => (await navigator.serviceWorker.getRegistrations()).length,
-      ),
+      await page.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).length),
       0,
       'Ordinary browsing does not install an app cache',
     );
@@ -63,18 +61,12 @@ async function run() {
     assert.equal(await page.evaluate(() => window.prompted), true);
     await page.evaluate(() => window.dispatchEvent(new Event('appinstalled')));
     await page.evaluate(() => navigator.serviceWorker.ready);
-    await page.waitForFunction(
-      () => navigator.serviceWorker.controller !== null,
-    );
+    await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
     const shell = async () =>
       page.evaluate(async () => {
         const names = await caches.keys();
-        const cache = await caches.open(
-          names.find((name) => name.startsWith('hyperpedia-shell-')),
-        );
-        return (await cache.keys())
-          .map((request) => new URL(request.url).pathname)
-          .sort();
+        const cache = await caches.open(names.find((name) => name.startsWith('hyperpedia-shell-')));
+        return (await cache.keys()).map((request) => new URL(request.url).pathname).sort();
       });
     const expected = [
       '/favicon.svg',
@@ -91,46 +83,24 @@ async function run() {
     await page.getByRole('button', { name: 'Inloggen', exact: true }).click();
     await page.waitForURL('**/admin');
     await page.goto(base + '/posts/story');
-    assert.equal(
-      await page
-        .getByRole('button', { name: 'Uitloggen', exact: true })
-        .count(),
-      1,
-    );
+    assert.equal(await page.getByRole('button', { name: 'Uitloggen', exact: true }).count(), 1);
     await page.goto(base + '/privacy');
-    assert.deepEqual(
-      await shell(),
-      expected,
-      'No administrator or visited story HTML is cached',
-    );
+    assert.deepEqual(await shell(), expected, 'No administrator or visited story HTML is cached');
     await context.setOffline(true);
     const offline = await page.goto(base + '/posts/story');
     assert.equal(offline.status(), 503);
-    assert.match(
-      await page.locator('h1').textContent(),
-      /Even geen verbinding/,
-    );
+    assert.match(await page.locator('h1').textContent(), /Even geen verbinding/);
     assert.equal(await page.locator('[data-reader]').count(), 0);
+    assert.equal(await page.getByRole('button', { name: 'Uitloggen', exact: true }).count(), 0);
     assert.equal(
-      await page
-        .getByRole('button', { name: 'Uitloggen', exact: true })
-        .count(),
-      0,
-    );
-    assert.equal(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth > innerWidth + 1,
-      ),
+      await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1),
       false,
     );
     await context.setOffline(false);
     await page.locator('[data-offline-retry]').click();
     await page.locator('[data-reader]').waitFor();
     assert.equal(new URL(page.url()).pathname, '/posts/story');
-    assert.match(
-      await page.locator('.body').textContent(),
-      /oorspronkelijke tekst/,
-    );
+    assert.match(await page.locator('.body').textContent(), /oorspronkelijke tekst/);
     assert.deepEqual(await shell(), expected);
     await context.setOffline(true);
     await assert.rejects(page.goto(base + '/login'), /net::ERR_/);
@@ -140,26 +110,19 @@ async function run() {
     const ios = await browser.newContext({
       viewport: { width: 390, height: 850 },
     });
-    await ios.addInitScript(() =>
-      Object.defineProperty(navigator, 'standalone', { value: true }),
-    );
+    await ios.addInitScript(() => Object.defineProperty(navigator, 'standalone', { value: true }));
     const iosPage = await ios.newPage();
     iosPage.on('pageerror', (error) => errors.push(error.message));
     await iosPage.goto(base);
     await iosPage.evaluate(() => navigator.serviceWorker.ready);
-    await iosPage.waitForFunction(
-      () => navigator.serviceWorker.controller !== null,
-    );
+    await iosPage.waitForFunction(() => navigator.serviceWorker.controller !== null);
     await iosPage.locator('[data-consent-reject]').click();
     await iosPage.locator('[data-info-open]').click();
     assert.match(
       await iosPage.locator('[data-install-guide]').textContent(),
       /Je gebruikt Hyperpedia als webapp/,
     );
-    assert.equal(
-      await iosPage.locator('[data-install-app]').isVisible(),
-      false,
-    );
+    assert.equal(await iosPage.locator('[data-install-app]').isVisible(), false);
     await ios.close();
     assert.deepEqual(errors, []);
     console.log(

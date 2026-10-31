@@ -9,12 +9,7 @@
   let installPrompt;
   let registering;
   function registerOffline() {
-    if (
-      !('serviceWorker' in navigator) ||
-      !window.isSecureContext ||
-      registering
-    )
-      return;
+    if (!('serviceWorker' in navigator) || !window.isSecureContext || registering) return;
     registering = navigator.serviceWorker
       .register(`/sw.js?v=${encodeURIComponent(version)}`, {
         scope: '/',
@@ -52,8 +47,7 @@
             ? 'Installatie gestart. Je kunt Hyperpedia vanaf je beginscherm openen.'
             : 'Je kunt Hyperpedia later ook via het browsermenu toevoegen.';
     } catch {
-      if (status)
-        status.textContent = 'Voeg Hyperpedia toe via het browsermenu.';
+      if (status) status.textContent = 'Voeg Hyperpedia toe via het browsermenu.';
     }
   });
   window.addEventListener('appinstalled', () => {

@@ -37,7 +37,7 @@ function privacyPage() {
         <tr><th scope="row"><code>hyperpedia_session</code></th><td>Noodzakelijk: beveiligde cookie voor beheerlogin</td><td>Deze sessie; zeven dagen bij zelf gekozen aangemeld blijven</td></tr>
       </tbody></table></div>
       <p>Alle browseropslag blijft lokaal. Alleen de beheercookie wordt naar Hyperpedia gestuurd; uitloggen maakt de sessie ongeldig. Een geïnstalleerde webapp bewaart geen bezochte verhaalpagina’s en kan een eigen leeslijst hebben. Een privévenster sluiten kan lokale gegevens verwijderen.</p>
-      <p>De server en hostingprovider ontvangen technische verzoekgegevens, zoals je IP-adres, om pagina’s te leveren. Bij beheerlogin wordt dit tijdelijk gebruikt om mislukte pogingen te begrenzen. Verhalen en reacties blijven in het archief totdat de beheerder ze verwijdert. Verhaaltellingen bewaren geen IP-adressen: alleen totalen, totdat de beheerder ze verwijdert.</p>
+      <p>De server en hostingprovider ontvangen technische verzoekgegevens, zoals je IP-adres, om pagina’s te leveren. Bij beheerlogin wordt dit tijdelijk gebruikt om mislukte pogingen te begrenzen. Met toestemming telt een verhaal hoogstens eenmaal per kwartier per netwerkadres mee. Misbruikbeveiliging gebruikt kortlevende sleutels in het servergeheugen; die na ongeveer een kwartier worden opgeruimd en bij een herstart verdwijnen. Op schijf staan alleen verhaaltotalen, totdat de beheerder ze verwijdert. Verhalen en reacties blijven in het archief totdat de beheerder ze verwijdert.</p>
       <p>Delen opent de deelopties van je browser op jouw verzoek. Externe links laden pas als je ze opent; die diensten hebben hun eigen privacybeleid.</p></div>
     </details>
   </section>`;

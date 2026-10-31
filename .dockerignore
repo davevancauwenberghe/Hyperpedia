@@ -10,3 +10,5 @@ data
 *.pem
 *.key
 backups
+*.bak
+*.bak.*

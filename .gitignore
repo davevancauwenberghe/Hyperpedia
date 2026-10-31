@@ -16,6 +16,8 @@ coverage/
 .nyc_output/
 tmp/
 *.tmp
+*.bak
+*.bak.*
 
 # Private migration archives and TLS keys
 backups/

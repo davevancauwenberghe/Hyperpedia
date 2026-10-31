@@ -22,14 +22,20 @@ test('legacy embedded read counts are migrated into durable read metrics', () =>
   process.env.DATA_DIR = dir;
   delete require.cache[require.resolve('../src/store')];
   const store = require('../src/store');
-  fs.writeFileSync(path.join(dir, 'hyperpedia-posts.json'), JSON.stringify({
-    posts: [{ id: 'post-1', author: 'Auteur', title: 'Titel', body: 'Tekst', read_count: 42 }],
-  }));
+  fs.writeFileSync(
+    path.join(dir, 'hyperpedia-posts.json'),
+    JSON.stringify({
+      posts: [{ id: 'post-1', author: 'Auteur', title: 'Titel', body: 'Tekst', read_count: 42 }],
+    }),
+  );
 
   assert.equal(store.getStats().readCount, 42);
   store.recordPostRead('post-1');
   assert.equal(store.getStats().readCount, 43);
-  const metrics = JSON.parse(fs.readFileSync(path.join(dir, 'hyperpedia-read-metrics.json'), 'utf8'));
+  store.flushReadMetrics();
+  const metrics = JSON.parse(
+    fs.readFileSync(path.join(dir, 'hyperpedia-read-metrics.json'), 'utf8'),
+  );
   assert.equal(metrics.posts['post-1'].read_count, 43);
   assert.equal(store.allPosts()[0].read_count, undefined);
 });
@@ -39,10 +45,14 @@ test('editing a legacy post preserves embedded read counts before stripping old 
   process.env.DATA_DIR = dir;
   delete require.cache[require.resolve('../src/store')];
   const store = require('../src/store');
-  fs.writeFileSync(path.join(dir, 'hyper-posts.json'), JSON.stringify({ posts: [{ id: 'one', title: 'Old', body: 'Text', read_count: 42 }] }));
-  const posts = store.allPosts();
+  fs.writeFileSync(
+    path.join(dir, 'hyper-posts.json'),
+    JSON.stringify({ posts: [{ id: 'one', title: 'Old', body: 'Text', read_count: 42 }] }),
+  );
+  const posts = store.postsForEdit();
   posts[0].title = 'Edited';
   store.savePosts(posts);
+  assert.equal(store.allPosts()[0].title, 'Edited');
   assert.equal(store.getStats().readCount, 42);
 });
 
@@ -67,7 +77,10 @@ test('cached archive snapshots cannot mutate durable data and external replaceme
   const snapshot = store.allPosts();
   snapshot[0].title = 'Not saved';
   assert.equal(store.allPosts()[0].title, 'Original');
-  fs.writeFileSync(path.join(dir, 'hyperpedia-posts.json'), JSON.stringify({ posts: [{ id: 'one', title: 'Replaced on disk', body: 'Text' }] }));
+  fs.writeFileSync(
+    path.join(dir, 'hyperpedia-posts.json'),
+    JSON.stringify({ posts: [{ id: 'one', title: 'Replaced on disk', body: 'Text' }] }),
+  );
   assert.equal(store.allPosts()[0].title, 'Replaced on disk');
   assert.throws(() => store.savePosts([{ id: 'one', labels: {} }]));
   assert.equal(store.allPosts()[0].title, 'Replaced on disk');

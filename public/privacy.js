@@ -21,14 +21,10 @@
   }
   document
     .querySelectorAll('[data-consent-accept]')
-    .forEach((button) =>
-      button.addEventListener('click', () => choose(true, true)),
-    );
+    .forEach((button) => button.addEventListener('click', () => choose(true, true)));
   document
     .querySelectorAll('[data-consent-reject]')
-    .forEach((button) =>
-      button.addEventListener('click', () => choose(false, false)),
-    );
+    .forEach((button) => button.addEventListener('click', () => choose(false, false)));
   form?.addEventListener('submit', (event) => {
     event.preventDefault();
     choose(form.elements.preferences.checked, form.elements.statistics.checked);

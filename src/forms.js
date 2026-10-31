@@ -41,9 +41,7 @@ function readForm(req, { maxBytes = 1024 * 1024, timeoutMs = 0 } = {}) {
       try {
         finish(
           null,
-          Object.fromEntries(
-            new URLSearchParams(Buffer.concat(chunks).toString('utf8')),
-          ),
+          Object.fromEntries(new URLSearchParams(Buffer.concat(chunks).toString('utf8'))),
         );
       } catch (error) {
         finish(error);
@@ -57,10 +55,7 @@ function readForm(req, { maxBytes = 1024 * 1024, timeoutMs = 0 } = {}) {
     req.on('aborted', onAborted);
     // An absolute deadline also expires uploads that keep trickling in data.
     if (timeoutMs)
-      timer = setTimeout(
-        () => finish(bodyError('Inlogverzoek duurde te lang.', 408)),
-        timeoutMs,
-      );
+      timer = setTimeout(() => finish(bodyError('Inlogverzoek duurde te lang.', 408)), timeoutMs);
   });
 }
 
@@ -69,10 +64,7 @@ function createLoginBodyReader(limits = LOGIN_BODY_LIMITS) {
   return async (req, key) => {
     if (active.has(key) || active.size >= limits.maxConcurrent) {
       req.pause();
-      throw bodyError(
-        'Te veel gelijktijdige inlogverzoeken. Probeer opnieuw.',
-        429,
-      );
+      throw bodyError('Te veel gelijktijdige inlogverzoeken. Probeer opnieuw.', 429);
     }
     active.add(key);
     try {

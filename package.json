@@ -1,6 +1,6 @@
 {
   "name": "hyperpedia",
-  "version": "0.6.3",
+  "version": "0.7.0",
   "description": "Een rustige encyclopedie met herkenbare verhalen rond hyperventilatie, stress en zenuwstelselontregeling.",
   "main": "src/server.js",
   "scripts": {
@@ -9,13 +9,24 @@
     "create-admin": "node scripts/create-admin.js",
     "check:data": "node scripts/check-data.js",
     "test": "node --test",
-    "test:browser": "node scripts/check-browser.js && node scripts/check-reading-browser.js && node scripts/check-pwa-browser.js",
-    "generate:icons": "node scripts/generate-app-icons.js"
+    "test:browser": "node scripts/check-browser.js && node scripts/check-reading-browser.js && node scripts/check-pwa-browser.js && node scripts/check-security-browser.js",
+    "generate:icons": "node scripts/generate-app-icons.js",
+    "lint": "eslint src public scripts test eslint.config.js",
+    "format": "prettier --write \"{src,public,scripts,test}/**/*.js\" \"*.{js,json,yaml}\" \".github/**/*.{yml,yaml}\"",
+    "format:check": "prettier --check \"{src,public,scripts,test}/**/*.js\" \"*.{js,json,yaml}\" \".github/**/*.{yml,yaml}\"",
+    "benchmark": "node scripts/benchmark-archive.js"
   },
   "engines": {
     "node": ">=22"
   },
   "devDependencies": {
-    "playwright": "1.64.0"
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.14.0",
+    "globals": "^17.13.0",
+    "playwright": "1.64.0",
+    "prettier": "^3.9.10"
+  },
+  "overrides": {
+    "minimatch": "^11.0.1"
   }
 }

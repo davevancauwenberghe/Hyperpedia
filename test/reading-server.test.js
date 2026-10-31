@@ -5,9 +5,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 test('personal library, paths, author URLs and protected path editing preserve the archive', async () => {
-  process.env.DATA_DIR = fs.mkdtempSync(
-    path.join(os.tmpdir(), 'hyper-reading-'),
-  );
+  process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'hyper-reading-'));
   process.env.SESSION_SECRET = 'x'.repeat(32);
   delete process.env.SITE_URL;
   const store = require('../src/store');
@@ -27,14 +25,10 @@ test('personal library, paths, author URLs and protected path editing preserve t
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
     const story = await (await fetch(base + '/posts/post-0')).text();
-    const schema = JSON.parse(
-      story.match(/type="application\/ld\+json">([\s\S]*?)<\/script>/)[1],
-    );
+    const schema = JSON.parse(story.match(/type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]);
     assert.equal(schema.image, undefined);
     assert.match(story, /property="og:image"/);
-    const options = story.match(
-      /<details class="reading-preferences"[\s\S]*?<\/details>/,
-    )[0];
+    const options = story.match(/<details class="reading-preferences"[\s\S]*?<\/details>/)[0];
     for (const control of [
       'data-reading-size',
       'data-reading-width',
@@ -45,10 +39,7 @@ test('personal library, paths, author URLs and protected path editing preserve t
       'data-story-print',
     ])
       assert.ok(options.includes(control), control);
-    assert.doesNotMatch(
-      story,
-      /data-progress|data-story-resume|reader-toolbar|data-reading-block/,
-    );
+    assert.doesNotMatch(story, /data-progress|data-story-resume|reader-toolbar|data-reading-block/);
     const privacy = await (await fetch(base + '/privacy')).text();
     assert.match(privacy, /data-privacy-form/);
     assert.match(privacy, /één jaar/);
@@ -66,10 +57,7 @@ test('personal library, paths, author URLs and protected path editing preserve t
       ).mainEntity;
       assert.equal(entity['@id'], author['@id']);
     }
-    assert.equal(
-      (await fetch(base + '/bronvermelding/post-0/reacties/missing')).status,
-      404,
-    );
+    assert.equal((await fetch(base + '/bronvermelding/post-0/reacties/missing')).status, 404);
     const home = await (await fetch(base)).text();
     assert.doesNotMatch(home, /data-bookmark=|data-personal-shelf/);
     const homeSchema = JSON.parse(
@@ -78,18 +66,14 @@ test('personal library, paths, author URLs and protected path editing preserve t
     assert.equal(homeSchema.mainEntity['@type'], 'ItemList');
     assert.equal(homeSchema.mainEntity.itemListElement.length, 6);
     assert.ok(
-      homeSchema.mainEntity.itemListElement.every((item) =>
-        item.url.startsWith(base + '/posts/'),
-      ),
+      homeSchema.mainEntity.itemListElement.every((item) => item.url.startsWith(base + '/posts/')),
     );
     const routeUrl = home.match(/class="path-card" href="([^"]+)"/)[1];
     const routeId = routeUrl.split('/').pop();
     const routeHtml = await (await fetch(base + routeUrl)).text();
     assert.doesNotMatch(routeHtml, /data-bookmark=/);
     assert.equal((routeHtml.match(/class="path-number"/g) || []).length, 5);
-    const inRoute = await (
-      await fetch(`${base}/posts/post-0?route=${routeId}`)
-    ).text();
+    const inRoute = await (await fetch(`${base}/posts/post-0?route=${routeId}`)).text();
     assert.match(inRoute, /Leesroute · 1 van 5/);
     assert.match(inRoute, /Volgend verhaal/);
     assert.match(inRoute, /canonical" href="[^"?]+\/posts\/post-0"/);
@@ -97,21 +81,12 @@ test('personal library, paths, author URLs and protected path editing preserve t
     assert.match(library, /robots" content="noindex, follow"/);
     assert.doesNotMatch(library, /data-reader-id=|data-continue-list/);
     assert.match(library, /deze browser en dit browserprofiel/);
-    const catalog = await (
-      await fetch(base + '/leeslijst/catalogus.json')
-    ).json();
-    assert.deepEqual(Object.keys(catalog.posts[0]).sort(), [
-      'author',
-      'id',
-      'title',
-    ]);
+    const catalog = await (await fetch(base + '/leeslijst/catalogus.json')).json();
+    assert.deepEqual(Object.keys(catalog.posts[0]).sort(), ['author', 'id', 'title']);
     const sitemap = await (await fetch(base + '/sitemap.xml')).text();
     assert.ok(sitemap.includes(routeUrl));
     assert.doesNotMatch(sitemap, /leeslijst|bronvermelding/);
-    assert.equal(
-      (await fetch(base + '/admin/leesroutes', { redirect: 'manual' })).status,
-      302,
-    );
+    assert.equal((await fetch(base + '/admin/leesroutes', { redirect: 'manual' })).status, 302);
     const login = await fetch(base + '/login', {
       method: 'POST',
       body: new URLSearchParams({
@@ -121,10 +96,7 @@ test('personal library, paths, author URLs and protected path editing preserve t
       redirect: 'manual',
     });
     const cookie = login.headers.get('set-cookie').split(';')[0];
-    assert.equal(
-      (await fetch(base + '/privacy')).headers.get('cache-control'),
-      'no-cache',
-    );
+    assert.equal((await fetch(base + '/privacy')).headers.get('cache-control'), 'no-cache');
     for (const method of ['GET', 'HEAD']) {
       const privacy = await fetch(base + '/privacy', {
         method,
@@ -154,11 +126,7 @@ test('personal library, paths, author URLs and protected path editing preserve t
       redirect: 'manual',
     });
     assert.equal(response.status, 302);
-    assert.deepEqual(store.getPathDefinitions()[0].postIds, [
-      'post-5',
-      'post-3',
-      'post-1',
-    ]);
+    assert.deepEqual(store.getPathDefinitions()[0].postIds, ['post-5', 'post-3', 'post-1']);
     assert.equal(
       (
         await fetch(base + '/admin/leesroutes', {
@@ -172,13 +140,8 @@ test('personal library, paths, author URLs and protected path editing preserve t
     );
     const selected = await (await fetch(base + routeUrl)).text();
     assert.ok(selected.indexOf('Verhaal 5') < selected.indexOf('Verhaal 3'));
-    assert.equal(
-      store.allPosts()[0].body,
-      'Een eerste alinea.\n\nEen tweede alinea.',
-    );
-    const exported = await (
-      await fetch(base + '/admin/export', { headers: { cookie } })
-    ).json();
+    assert.equal(store.allPosts()[0].body, 'Een eerste alinea.\n\nEen tweede alinea.');
+    const exported = await (await fetch(base + '/admin/export', { headers: { cookie } })).json();
     assert.equal(exported.readingPaths[0].id, routeId);
     const latest = await (
       await fetch(`${base}/admin/leesroutes?id=${routeId}`, {
@@ -204,44 +167,26 @@ test('personal library, paths, author URLs and protected path editing preserve t
         postIds: ['post-0', 'post-1', 'post-2'],
       },
     ]);
-    fs.writeFileSync(
-      path.join(process.env.DATA_DIR, 'hyperpedia-reading-paths.json'),
-      '{broken',
-    );
+    fs.writeFileSync(path.join(process.env.DATA_DIR, 'hyperpedia-reading-paths.json'), '{broken');
     assert.throws(() => store.savePathDefinitions([]));
     assert.equal(
-      fs.readFileSync(
-        path.join(process.env.DATA_DIR, 'hyperpedia-reading-paths.json'),
-        'utf8',
-      ),
+      fs.readFileSync(path.join(process.env.DATA_DIR, 'hyperpedia-reading-paths.json'), 'utf8'),
       '{broken',
     );
     assert.equal((await fetch(base + '/posts/post-0')).status, 200);
-    assert.match(
-      await (await fetch(base + '/leesroutes')).text(),
-      /ademhaling/,
-    );
+    assert.match(await (await fetch(base + '/leesroutes')).text(), /ademhaling/);
     const recoveryExport = await fetch(base + '/admin/export', {
       headers: { cookie },
     });
     assert.equal(recoveryExport.status, 200);
-    assert.equal(
-      recoveryExport.headers.get('cache-control'),
-      'private, no-store',
-    );
+    assert.equal(recoveryExport.headers.get('cache-control'), 'private, no-store');
     const recovery = await recoveryExport.json();
     assert.equal(recovery.posts.length, 6);
-    assert.equal(
-      recovery.posts[0].body,
-      'Een eerste alinea.\n\nEen tweede alinea.',
-    );
+    assert.equal(recovery.posts[0].body, 'Een eerste alinea.\n\nEen tweede alinea.');
     assert.equal(recovery.readingPaths, null);
     assert.equal(recovery.warnings[0].code, 'READING_PATHS_UNREADABLE');
     assert.equal(
-      fs.readFileSync(
-        path.join(process.env.DATA_DIR, 'hyperpedia-reading-paths.json'),
-        'utf8',
-      ),
+      fs.readFileSync(path.join(process.env.DATA_DIR, 'hyperpedia-reading-paths.json'), 'utf8'),
       '{broken',
     );
   } finally {

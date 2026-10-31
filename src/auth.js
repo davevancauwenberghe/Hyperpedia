@@ -15,14 +15,11 @@ function createAuth() {
   const attempts = new Map();
   const pending = new Set();
   let lastCleanup = 0;
-  const sign = (value) =>
-    crypto.createHmac('sha256', secret).update(value).digest('hex');
+  const sign = (value) => crypto.createHmac('sha256', secret).update(value).digest('hex');
   const cleanup = (now = Date.now()) => {
     if (now - lastCleanup < 60_000) return;
-    for (const [key, expires] of sessions)
-      if (expires <= now) sessions.delete(key);
-    for (const [key, attempt] of attempts)
-      if (attempt.expiresAt <= now) attempts.delete(key);
+    for (const [key, expires] of sessions) if (expires <= now) sessions.delete(key);
+    for (const [key, attempt] of attempts) if (attempt.expiresAt <= now) attempts.delete(key);
     lastCleanup = now;
   };
   function authenticate(req) {
@@ -33,31 +30,22 @@ function createAuth() {
       .find((value) => value.startsWith('hyperpedia_session='));
     let value = '';
     try {
-      value = decodeURIComponent(
-        cookie?.slice('hyperpedia_session='.length) || '',
-      );
+      value = decodeURIComponent(cookie?.slice('hyperpedia_session='.length) || '');
     } catch {}
     const [id, signature] = value.split('.');
     const valid =
       /^[a-f0-9]{64}$/.test(id || '') &&
       /^[a-f0-9]{64}$/.test(signature || '') &&
-      crypto.timingSafeEqual(
-        Buffer.from(signature, 'hex'),
-        Buffer.from(sign(id), 'hex'),
-      );
+      crypto.timingSafeEqual(Buffer.from(signature, 'hex'), Buffer.from(sign(id), 'hex'));
     req.admin = Boolean(valid && sessions.get(id) > Date.now());
     req.sessionId = req.admin ? id : undefined;
   }
   function loginKey(req) {
     // Enable only behind the supplied Apache vhost and a loopback-only port.
-    const apacheIp = process.env.TRUST_APACHE_PROXY === 'true' &&
-      req.headers['x-hyperpedia-client-ip'];
+    const apacheIp =
+      process.env.TRUST_APACHE_PROXY === 'true' && req.headers['x-hyperpedia-client-ip'];
     if (typeof apacheIp === 'string' && net.isIP(apacheIp)) return apacheIp;
-    // Fly supplies this header. Untrusted forwarded headers cannot bypass a local limit.
-    const flyIp = process.env.FLY_APP_NAME && req.headers['fly-client-ip'];
-    return typeof flyIp === 'string' && net.isIP(flyIp)
-      ? flyIp
-      : req.socket.remoteAddress || 'unknown';
+    return req.socket.remoteAddress || 'unknown';
   }
   function attemptFor(key) {
     cleanup();
@@ -74,8 +62,7 @@ function createAuth() {
   }
   function beginLogin(key) {
     const lockedUntil = attemptFor(key)?.lockedUntil || 0;
-    if (lockedUntil > Date.now())
-      return Math.ceil((lockedUntil - Date.now()) / 1000);
+    if (lockedUntil > Date.now()) return Math.ceil((lockedUntil - Date.now()) / 1000);
     if (pending.has(key) || pending.size >= 4) return 1;
     pending.add(key);
     return 0;

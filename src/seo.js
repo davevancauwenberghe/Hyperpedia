@@ -1,4 +1,8 @@
-const escapeXml = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]));
+const escapeXml = (value) =>
+  String(value).replace(
+    /[&<>"']/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[c],
+  );
 
 function isoDate(value) {
   if (!value) return undefined;
@@ -27,10 +31,14 @@ function sitemapDocuments(posts, siteUrl, perPage = 18, extraPaths = []) {
   addArchive('', posts.length);
   for (const path of extraPaths) add(path);
   for (const post of posts) {
-    add(`/posts/${encodeURIComponent(post.id)}`, isoDate(post.updated_at) || isoDate(post.created_at));
+    add(
+      `/posts/${encodeURIComponent(post.id)}`,
+      isoDate(post.updated_at) || isoDate(post.created_at),
+    );
     for (const label of new Set(post.labels || [])) labels.set(label, (labels.get(label) || 0) + 1);
   }
-  for (const [label, count] of [...labels].sort(([a], [b]) => a.localeCompare(b, 'nl'))) addArchive(label, count);
+  for (const [label, count] of [...labels].sort(([a], [b]) => a.localeCompare(b, 'nl')))
+    addArchive(label, count);
   const chunks = [[]];
   let bytes = 0;
   for (const { loc, lastmod } of entries.values()) {
@@ -43,10 +51,22 @@ function sitemapDocuments(posts, siteUrl, perPage = 18, extraPaths = []) {
     chunks.at(-1).push(entry);
     bytes += size;
   }
-  const xml = (tag, body) => `<?xml version="1.0" encoding="UTF-8"?>\n<${tag} xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</${tag}>`;
-  const documents = chunks.map(chunk => xml('urlset', chunk.join('\n')));
+  const xml = (tag, body) =>
+    `<?xml version="1.0" encoding="UTF-8"?>\n<${tag} xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</${tag}>`;
+  const documents = chunks.map((chunk) => xml('urlset', chunk.join('\n')));
   return {
-    root: documents.length === 1 ? documents[0] : xml('sitemapindex', documents.map((_, i) => `<sitemap><loc>${escapeXml(new URL(`/sitemaps/${i + 1}.xml`, siteUrl).href)}</loc></sitemap>`).join('\n')),
+    root:
+      documents.length === 1
+        ? documents[0]
+        : xml(
+            'sitemapindex',
+            documents
+              .map(
+                (_, i) =>
+                  `<sitemap><loc>${escapeXml(new URL(`/sitemaps/${i + 1}.xml`, siteUrl).href)}</loc></sitemap>`,
+              )
+              .join('\n'),
+          ),
     documents,
   };
 }
