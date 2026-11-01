@@ -89,7 +89,7 @@ test('reply IDs are unique within each story, while id-less archived replies rem
   const before = fs.readFileSync(file);
   assert.throws(
     () => store.savePosts([{ id: 'one', replies: [{ id: 'same' }, { id: 'same' }] }]),
-    /duplicate reply ID/,
+    /reactie-ID/,
   );
   assert.deepEqual(fs.readFileSync(file), before);
   store.savePosts([
@@ -103,7 +103,7 @@ test('reply IDs are unique within each story, while id-less archived replies rem
   const legacy = fs.readFileSync(file);
   assert.equal(store.allPosts()[0].replies.length, 2);
   assert.deepEqual(fs.readFileSync(file), legacy);
-  assert.throws(() => store.savePosts(store.postsForEdit()), /duplicate reply ID/);
+  assert.throws(() => store.savePosts(store.postsForEdit()), /reactie-ID/);
 });
 test('five private pre-edit backups rotate and preserve the original legacy bytes', (t) => {
   const { store, dir, file } = fixture(t);

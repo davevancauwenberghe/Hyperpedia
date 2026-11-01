@@ -115,8 +115,11 @@ function validatePosts(posts, { reading = false, trusted = new Set() } = {}) {
           !(reading && typeof reply.id === 'number' && Number.isFinite(reply.id))) ||
         (!reading && reply.id && replyIds.has(reply.id))
       ) {
-        throw new Error(
-          'Invalid archive reply or duplicate reply ID. Restore or repair the archive before editing.',
+        throw Object.assign(
+          new Error(
+            'Dit verhaal bevat ongeldige reactiegegevens of oude/dubbele reactie-ID’s. Je wijziging is niet opgeslagen. Herstel de reacties van dit verhaal. Gebruik npm run check:data voor een controle zonder wijzigingen.',
+          ),
+          { status: 422 },
         );
       }
       if (reply.id) replyIds.add(reply.id);

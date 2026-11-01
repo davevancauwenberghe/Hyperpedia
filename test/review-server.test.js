@@ -253,11 +253,62 @@ test('untouched legacy reply IDs cannot block unrelated administrator writes', a
   const before = fs.readFileSync(file);
   const changedLegacy = store.postsForEdit('legacy');
   changedLegacy.find((post) => post.id === 'legacy').title = 'Changed';
-  assert.throws(() => store.savePosts(changedLegacy), /duplicate reply ID/);
+  assert.throws(() => store.savePosts(changedLegacy), /reactie-ID/);
   const newInvalid = store.postsForEdit(null);
   newInvalid.push({ id: 'invalid-new', replies: [{ id: 42 }] });
-  assert.throws(() => store.savePosts(newInvalid), /Invalid archive reply/);
+  assert.throws(() => store.savePosts(newInvalid), /reactie-ID/);
   assert.deepEqual(fs.readFileSync(file), before);
+});
+
+test('editing a legacy story explains rejected writes with 422 and preserves every data file', async (t) => {
+  const { store, base, cookie, revision, dir } = await fixture(t, [
+    { id: 'legacy', title: 'Oud verhaal', author: 'Auteur', body: 'Originele tekst' },
+  ]);
+  const file = path.join(dir, 'hyperpedia-posts.json');
+  const posts = store.postsForEdit();
+  posts[0].replies = [
+    { id: 'duplicate', body: 'Eerste reactie' },
+    { id: 'duplicate', body: 'Tweede reactie' },
+    { id: 42, body: 'Numerieke sleutel' },
+    { id: 'unique', body: 'Unieke reactie' },
+  ];
+  fs.writeFileSync(file, JSON.stringify({ posts }));
+  const before = new Map(
+    fs.readdirSync(dir).map((name) => [name, fs.readFileSync(path.join(dir, name))]),
+  );
+  const currentRevision = await revision('/admin/edit/legacy');
+  const actions = [
+    [
+      '/admin/edit/legacy',
+      { revision: currentRevision, title: 'Nieuwe titel', author: 'Auteur', body: 'Concept' },
+    ],
+    [
+      '/admin/reply/legacy',
+      { author: 'Beheerder', originalReplier: 'Auteur', body: 'Nieuwe reactie' },
+    ],
+    ['/admin/reply/legacy/unique/delete', { revision: currentRevision }],
+  ];
+  for (const [route, fields] of actions) {
+    const response = await fetch(base + route, {
+      method: 'POST',
+      headers: { cookie },
+      body: new URLSearchParams(fields),
+      redirect: 'manual',
+    });
+    assert.equal(response.status, 422, route);
+    const message = await response.text();
+    assert.match(message, /reactie-ID’s/);
+    assert.match(message, /Je wijziging is niet opgeslagen/);
+    assert.match(message, /npm run check:data/);
+    assert.doesNotMatch(message, /Er ging iets mis/);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    assert.equal(response.headers.get('x-robots-tag'), 'noindex');
+    assert.deepEqual(fs.readdirSync(dir).sort(), [...before.keys()].sort());
+    for (const [name, bytes] of before)
+      assert.deepEqual(fs.readFileSync(path.join(dir, name)), bytes);
+    assert.equal(store.getPost('legacy').title, 'Oud verhaal');
+    assert.deepEqual(store.getPost('legacy').replies, posts[0].replies);
+  }
 });
 test('public counters require an explicit first-party consent signal, deduplicate repeats and rate limit bursts', async (t) => {
   const { store, base, dir } = await fixture(
