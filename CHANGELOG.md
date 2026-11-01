@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.7.0 — 2026-10-31
+
+- Fix reply edit/delete redirects for encoded archive IDs; require current revisions for story/reply edits and reply deletion, trim reply names, reject duplicate reply IDs and delete one exact match.
+- Keep id-less archived replies and attribution anchors readable while hiding unavailable edit controls.
+- Preserve complete emoji and combining characters in previews, rotate daily groups by four stories, and require explicit keyboard-friendly page selection.
+- Reuse frozen archive snapshots and a cached UTF-8 search index with relevance ranking; adapt the initial six-row layout locally without a second homepage request or added URL parameters.
+- Require an explicit first-party statistics consent signal, bound/deduplicate public read requests, buffer totals and flush every thirty seconds and on graceful shutdown.
+- Add CSP with exact SEO JSON-LD hashes, Permissions-Policy, compressed/ETagged versioned assets, and revalidatable worker updates. Preserve security headers on the offline fallback.
+- Trust Cloudflare client IPs only from its published proxy ranges in Apache; add HTTPS HSTS and verify both TLS and forwarding with an isolated integration test.
+- Raise PBKDF2-SHA256 to 600,000 iterations with login-time upgrades and equal password derivation for unknown usernames. Replace argv passwords with hidden confirmation or bounded stdin, enforcing sixteen characters for new credentials.
+- Keep five private pre-edit archive backups, add counter-reset confirmation, handle shutdown/rejections, and split admin, layout, asset, security and origin handling into focused modules.
+- Run the default image as Node, allow 512 MiB and a graceful stop window on the VPS, and retire Fly-only deployment/client-IP handling.
+- Add ESLint/Prettier, Dependabot for npm/Actions/Docker, pinned Action commits, synthetic load measurements and regressions for the review findings.
+- Accept legacy duplicate/numeric reply IDs and old counter values on reads without rewriting data; retain strict write validation and report compatibility warnings in the read-only data check.
+- Make password-hash upgrades best-effort without weakening concurrent-reset checks; derive immutable asset URLs and installed-app updates from content hashes.
+- Bound edit-time memory with single-story copies, on-disk backups, streamed atomic archive writes and reuse of the saved snapshot; exercise three edits and searches under the real 512 MiB container limit.
+- Name Cloudflare and Contabo in the privacy details; minimize access logs and isolate Hyperpedia's daily, approximately two-week log retention.
+
 ## 0.6.3 — 2026-10-29
 
 - Add a Coolify Compose deployment with `/srv/hyperpedia/data` mounted at `/data` and a loopback-only port for the existing Apache proxy.

@@ -451,6 +451,8 @@ textarea { resize: vertical; }
 .pagination div { display: flex; align-items: center; flex-wrap: wrap; gap: .45rem; }
 .page-picker { display: flex; align-items: center; gap: .35rem; color: var(--muted); font: 700 .86rem Inter, ui-sans-serif, system-ui, sans-serif; }
 .page-picker select { width: auto; appearance: auto; border: 1px solid var(--line); border-radius: 999px; background: var(--accent-soft); color: var(--ink); padding: .55rem .75rem; cursor: pointer; }
+.page-picker label { min-width: 0; }
+.page-picker button { padding: .55rem .85rem; }
 
 .page-link,
 .page-current { min-width: 2.35rem; border-radius: 999px; padding: .55rem .75rem; text-align: center; text-decoration: none; font: 700 .88rem Inter, ui-sans-serif, system-ui, sans-serif; }

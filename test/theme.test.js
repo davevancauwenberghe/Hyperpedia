@@ -8,11 +8,7 @@ const memory = (values) => ({
   setItem: (key, value) => values.set(key, value),
   removeItem: (key) => values.delete(key),
 });
-function boot({
-  local = new Map(),
-  session = new Map(),
-  blocked = false,
-} = {}) {
+function boot({ local = new Map(), session = new Map(), blocked = false } = {}) {
   const root = { dataset: {} };
   const listeners = {};
   const meta = {
@@ -51,20 +47,12 @@ function boot({
     document: {
       documentElement: root,
       querySelector: (selector) =>
-        selector === '.theme-toggle'
-          ? toggle
-          : selector.includes('theme-color')
-            ? meta
-            : null,
-      querySelectorAll: (selector) =>
-        selector === 'select[data-reading-size]' ? [control] : [],
+        selector === '.theme-toggle' ? toggle : selector.includes('theme-color') ? meta : null,
+      querySelectorAll: (selector) => (selector === 'select[data-reading-size]' ? [control] : []),
     },
   });
   for (const file of ['storage.js', 'theme.js', 'app.js'])
-    vm.runInContext(
-      fs.readFileSync(path.join(__dirname, '..', 'public', file), 'utf8'),
-      context,
-    );
+    vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'public', file), 'utf8'), context);
   return { root, meta, listeners, control, storage: window.hyperpediaStorage };
 }
 
@@ -90,10 +78,7 @@ test('reader text size survives refresh in this session, but durable storage req
   assert.equal(boot({ local }).control.value, 'normal');
   storage.choose(true, false);
   assert.equal(boot({ local }).control.value, 'extra');
-  local.set(
-    'hyperpedia-preferences-v1',
-    JSON.stringify({ 'reading-size': 'unexpected' }),
-  );
+  local.set('hyperpedia-preferences-v1', JSON.stringify({ 'reading-size': 'unexpected' }));
   assert.equal(boot({ local }).control.value, 'normal');
 });
 
@@ -103,10 +88,7 @@ test('acceptance and refusal expire in exactly one year, and revocation removes 
   storage.set('reading-preferences-open', 'true');
   storage.choose(true, true);
   const consent = JSON.parse(local.get('hyperpedia-consent-v1'));
-  assert.equal(
-    consent.expiresAt - consent.decidedAt,
-    365 * 24 * 60 * 60 * 1000,
-  );
+  assert.equal(consent.expiresAt - consent.decidedAt, 365 * 24 * 60 * 60 * 1000);
   assert.equal(boot({ local }).storage.get('reading-preferences-open'), 'true');
   storage.choose(false, false);
   assert.equal(local.has('hyperpedia-preferences-v1'), false);
@@ -122,10 +104,7 @@ test('acceptance and refusal expire in exactly one year, and revocation removes 
 test('optional preferences are not read without valid consent or with a forged expiry', () => {
   const now = Date.now();
   const local = new Map([
-    [
-      'hyperpedia-preferences-v1',
-      JSON.stringify({ theme: 'dark', 'reading-size': 'large' }),
-    ],
+    ['hyperpedia-preferences-v1', JSON.stringify({ theme: 'dark', 'reading-size': 'large' })],
     [
       'hyperpedia-consent-v1',
       JSON.stringify({

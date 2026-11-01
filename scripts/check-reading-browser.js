@@ -28,7 +28,9 @@ store.savePosts(
         author: 'Andere naam',
         body: 'Een gearchiveerde reactie.',
       },
-      ...(i === 0 ? [{ id: 'legacy /é%#"', author: 'Oude archiefnaam', body: 'Een geïmporteerde reactie.' }] : []),
+      ...(i === 0
+        ? [{ id: 'legacy /é%#"', author: 'Oude archiefnaam', body: 'Een geïmporteerde reactie.' }]
+        : []),
     ],
   })),
 );
@@ -57,24 +59,22 @@ async function run() {
     page.on('pageerror', (error) => errors.push(error.message));
     const readRequests = [];
     context.on('request', (request) => {
-      if (/\/posts\/[^/]+\/read$/.test(request.url()))
-        readRequests.push(request.url());
+      if (/\/posts\/[^/]+\/read$/.test(request.url())) readRequests.push(request.url());
     });
     await page.goto(base);
     assert.equal(await page.locator('[data-bookmark]').count(), 0);
     assert.equal(await page.locator('[data-personal-shelf]').count(), 0);
     await page.locator('[data-consent-reject]').click();
     await page.goto(base + '/posts/story-0');
-    const schema = await page.locator('script[type="application/ld+json"]').evaluate(el => JSON.parse(el.textContent));
+    const schema = await page
+      .locator('script[type="application/ld+json"]')
+      .evaluate((el) => JSON.parse(el.textContent));
     await page.goto(schema.comment[1].url);
     assert.equal(await page.locator('.reply:target').count(), 1);
     await page.goto(schema.comment[1].author.url);
     await page.locator('.attribution-page .back-link').click();
     assert.equal(await page.locator('.reply:target').count(), 1);
-    assert.equal(
-      await page.locator('.reading-preferences').evaluate((el) => el.open),
-      false,
-    );
+    assert.equal(await page.locator('.reading-preferences').evaluate((el) => el.open), false);
     await page.locator('.reading-preferences summary').click();
     for (const selector of [
       '[data-bookmark]',
@@ -83,96 +83,54 @@ async function run() {
       '[data-story-copy]',
       '[data-story-print]',
     ]) {
-      assert.equal(
-        await page.locator('.reading-preferences ' + selector).count(),
-        1,
-      );
+      assert.equal(await page.locator('.reading-preferences ' + selector).count(), 1);
     }
     assert.equal(
       await page
-        .locator(
-          'progress, [data-progress-toggle], [data-story-resume], .reader-toolbar',
-        )
+        .locator('progress, [data-progress-toggle], [data-story-resume], .reader-toolbar')
         .count(),
       0,
     );
     await page.locator('[data-bookmark]').click();
     await page.reload();
-    assert.equal(
-      await page.locator('.reading-preferences').evaluate((el) => el.open),
-      true,
-    );
-    assert.equal(
-      await page.locator('[data-bookmark]').getAttribute('aria-pressed'),
-      'true',
-    );
+    assert.equal(await page.locator('.reading-preferences').evaluate((el) => el.open), true);
+    assert.equal(await page.locator('[data-bookmark]').getAttribute('aria-pressed'), 'true');
     const otherTab = await context.newPage();
     await otherTab.goto(base + '/posts/story-0');
     await otherTab.locator('.reading-preferences summary').click();
     await otherTab.locator('[data-bookmark]').click();
     await page.waitForFunction(
-      () =>
-        document
-          .querySelector('[data-bookmark]')
-          .getAttribute('aria-pressed') === 'false',
+      () => document.querySelector('[data-bookmark]').getAttribute('aria-pressed') === 'false',
     );
     await otherTab.locator('[data-bookmark]').click();
     await page.waitForFunction(
-      () =>
-        document
-          .querySelector('[data-bookmark]')
-          .getAttribute('aria-pressed') === 'true',
+      () => document.querySelector('[data-bookmark]').getAttribute('aria-pressed') === 'true',
     );
     await otherTab.close();
     await page.locator('select[data-reading-width]').selectOption('focused');
     await page.locator('[data-focus-toggle]').click();
     assert.equal(await page.locator('.site-header').isVisible(), false);
     await page.keyboard.press('Escape');
-    assert.equal(
-      await page.locator('[data-focus-toggle]').getAttribute('aria-pressed'),
-      'false',
-    );
+    assert.equal(await page.locator('[data-focus-toggle]').getAttribute('aria-pressed'), 'false');
     await page.locator('.reading-preferences summary').click();
     await page.reload();
-    assert.equal(
-      await page.locator('.reading-preferences').evaluate((el) => el.open),
-      false,
-    );
+    assert.equal(await page.locator('.reading-preferences').evaluate((el) => el.open), false);
     await page.setViewportSize({ width: 390, height: 850 });
     await page.reload();
-    assert.equal(
-      await page.locator('.reading-preferences').evaluate((el) => el.open),
-      false,
-    );
+    assert.equal(await page.locator('.reading-preferences').evaluate((el) => el.open), false);
     await page.locator('.reading-preferences summary').click();
     await page.reload();
-    assert.equal(
-      await page.locator('.reading-preferences').evaluate((el) => el.open),
-      true,
-    );
-    assert.equal(
-      await page.locator('select[data-reading-width]').inputValue(),
-      'focused',
-    );
+    assert.equal(await page.locator('.reading-preferences').evaluate((el) => el.open), true);
+    assert.equal(await page.locator('select[data-reading-width]').inputValue(), 'focused');
     await page.locator('.body p').nth(12).scrollIntoViewIfNeeded();
     const saved = await page.evaluate(() =>
       JSON.parse(localStorage.getItem('hyperpedia-reading-v2')),
     );
     assert.deepEqual(Object.keys(saved).sort(), ['saved', 'version']);
-    assert.deepEqual(Object.keys(saved.saved[0]).sort(), [
-      'id',
-      'savedAt',
-      'title',
-    ]);
+    assert.deepEqual(Object.keys(saved.saved[0]).sort(), ['id', 'savedAt', 'title']);
+    assert.equal(readRequests.length, 0, 'No counter requests before statistics consent');
     assert.equal(
-      readRequests.length,
-      0,
-      'No counter requests before statistics consent',
-    );
-    assert.equal(
-      await page.evaluate(() =>
-        localStorage.getItem('hyperpedia-preferences-v1'),
-      ),
+      await page.evaluate(() => localStorage.getItem('hyperpedia-preferences-v1')),
       null,
     );
     await page.goto(base + '/leeslijst');
@@ -182,10 +140,7 @@ async function run() {
       /browser en dit browserprofiel/,
     );
     assert.equal(await page.locator('[data-continue-list]').count(), 0);
-    assert.equal(
-      await page.locator('[data-saved-list] a').getAttribute('href'),
-      '/posts/story-0',
-    );
+    assert.equal(await page.locator('[data-saved-list] a').getAttribute('href'), '/posts/story-0');
     await page.goto(base + '/privacy');
     await page.locator('[name="preferences"]').check();
     await page.getByRole('button', { name: 'Keuze opslaan' }).click();
@@ -197,33 +152,25 @@ async function run() {
     assert.equal(choice.statistics, false);
     const fresh = await context.newPage();
     await fresh.goto(base + '/posts/story-0');
-    assert.equal(
-      await fresh.locator('.reading-preferences').evaluate((el) => el.open),
-      true,
-    );
-    assert.equal(
-      await fresh.locator('[data-consent-banner]').isVisible(),
-      false,
-    );
+    assert.equal(await fresh.locator('.reading-preferences').evaluate((el) => el.open), true);
+    assert.equal(await fresh.locator('[data-consent-banner]').isVisible(), false);
     const counted = fresh.waitForRequest((request) =>
       /\/posts\/story-0\/read$/.test(request.url()),
     );
     await page.locator('[name="statistics"]').check();
     await page.getByRole('button', { name: 'Keuze opslaan' }).click();
-    await counted;
+    const trackedRequest = await counted;
+    assert.equal(trackedRequest.headers()['x-hyperpedia-consent'], 'statistics');
+    assert.equal(trackedRequest.headers().cookie, undefined);
     await page.getByRole('button', { name: 'Alles weigeren' }).click();
     await fresh.waitForFunction(
-      () =>
-        JSON.parse(localStorage.getItem('hyperpedia-consent-v1')).statistics ===
-        false,
+      () => JSON.parse(localStorage.getItem('hyperpedia-consent-v1')).statistics === false,
     );
     const afterRevocation = readRequests.length;
     await fresh.goto(base + '/posts/story-1');
     assert.equal(readRequests.length, afterRevocation);
     assert.equal(
-      await page.evaluate(() =>
-        localStorage.getItem('hyperpedia-preferences-v1'),
-      ),
+      await page.evaluate(() => localStorage.getItem('hyperpedia-preferences-v1')),
       null,
     );
     await fresh.close();
@@ -245,16 +192,11 @@ async function run() {
     await page.goto(base + '/leeslijst');
     await page.locator('[data-saved-list] a').waitFor();
     assert.equal(await page.locator('[data-saved-list] img').count(), 0);
-    assert.match(
-      await page.locator('[data-saved-list]').textContent(),
-      /niet meer beschikbaar/,
-    );
+    assert.match(await page.locator('[data-saved-list]').textContent(), /niet meer beschikbaar/);
     await page.route('**/leeslijst/catalogus.json', (route) => route.abort());
     await page.reload();
     await page.waitForFunction(() =>
-      document
-        .querySelector('[data-library-status]')
-        .textContent.includes('actuele verhalenlijst'),
+      document.querySelector('[data-library-status]').textContent.includes('actuele verhalenlijst'),
     );
     assert.equal(await page.locator('[data-remove-bookmark]').count(), 2);
     assert.equal(await page.locator('[data-saved-list] img').count(), 0);
@@ -266,8 +208,23 @@ async function run() {
     const stalledContext = await browser.newContext();
     await stalledContext.addInitScript(() => {
       const now = Date.now();
-      localStorage.setItem('hyperpedia-consent-v1', JSON.stringify({ version: 1, preferences: false, statistics: false, decidedAt: now, expiresAt: now + 365 * 24 * 3600 * 1000 }));
-      localStorage.setItem('hyperpedia-reading-v2', JSON.stringify({ version: 2, saved: [{ id: 'story-0', title: 'Bewaard verhaal', savedAt: now }] }));
+      localStorage.setItem(
+        'hyperpedia-consent-v1',
+        JSON.stringify({
+          version: 1,
+          preferences: false,
+          statistics: false,
+          decidedAt: now,
+          expiresAt: now + 365 * 24 * 3600 * 1000,
+        }),
+      );
+      localStorage.setItem(
+        'hyperpedia-reading-v2',
+        JSON.stringify({
+          version: 2,
+          saved: [{ id: 'story-0', title: 'Bewaard verhaal', savedAt: now }],
+        }),
+      );
     });
     const stalledPage = await stalledContext.newPage();
     await stalledPage.clock.install();
@@ -275,8 +232,14 @@ async function run() {
     await stalledPage.goto(base + '/leeslijst');
     await stalledPage.clock.runFor(8001);
     await stalledPage.locator('[data-remove-bookmark]').waitFor();
-    assert.equal(await stalledPage.locator('[data-saved-list] a').getAttribute('href'), '/posts/story-0');
-    assert.match(await stalledPage.locator('[data-library-status]').textContent(), /actuele verhalenlijst/);
+    assert.equal(
+      await stalledPage.locator('[data-saved-list] a').getAttribute('href'),
+      '/posts/story-0',
+    );
+    assert.match(
+      await stalledPage.locator('[data-library-status]').textContent(),
+      /actuele verhalenlijst/,
+    );
     await stalledPage.locator('[data-remove-bookmark]').click();
     assert.equal(await stalledPage.locator('[data-remove-bookmark]').count(), 0);
     await stalledPage.unrouteAll({ behavior: 'ignoreErrors' });
@@ -291,10 +254,7 @@ async function run() {
     const independentPage = await independent.newPage();
     await independentPage.goto(base + '/leeslijst');
     await independentPage.locator('[data-library-controls]').waitFor();
-    assert.equal(
-      await independentPage.locator('[data-remove-bookmark]').count(),
-      0,
-    );
+    assert.equal(await independentPage.locator('[data-remove-bookmark]').count(), 0);
     await independent.close();
     // Expired consent and bookmarks are purged; optional features stay off.
     await page.evaluate(() => {
@@ -310,10 +270,7 @@ async function run() {
           expiresAt: decidedAt + year,
         }),
       );
-      localStorage.setItem(
-        'hyperpedia-preferences-v1',
-        JSON.stringify({ theme: 'dark' }),
-      );
+      localStorage.setItem('hyperpedia-preferences-v1', JSON.stringify({ theme: 'dark' }));
       localStorage.setItem(
         'hyperpedia-reading-v2',
         JSON.stringify({
@@ -327,9 +284,7 @@ async function run() {
     assert.equal(await page.locator('[data-remove-bookmark]').count(), 0);
     assert.equal(await page.locator('[data-consent-banner]').isVisible(), true);
     assert.equal(
-      await page.evaluate(() =>
-        localStorage.getItem('hyperpedia-preferences-v1'),
-      ),
+      await page.evaluate(() => localStorage.getItem('hyperpedia-preferences-v1')),
       null,
     );
     await page.locator('[data-consent-reject]').click();
@@ -337,9 +292,9 @@ async function run() {
     console.log(
       'Unified controls, disclosure persistence, bookmarks, consent, expiry and clearing: passed',
     );
-    const routeUrl = (
-      await (await page.request.get(base + '/leesroutes')).text()
-    ).match(/class="path-card" href="([^"]+)"/)[1];
+    const routeUrl = (await (await page.request.get(base + '/leesroutes')).text()).match(
+      /class="path-card" href="([^"]+)"/,
+    )[1];
     const paths = [
       '/',
       '/posts/story-0',
@@ -355,19 +310,27 @@ async function run() {
       for (const path of paths) {
         await page.goto(base + path);
         assert.equal(
-          await page.evaluate(
-            () => document.documentElement.scrollWidth > innerWidth + 1,
-          ),
+          await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1),
           false,
           `${path} overflows at ${width}px`,
         );
         if (path === '/privacy') {
-          const widths = await page.evaluate(() => ({ main: document.querySelector('main').getBoundingClientRect().width, privacy: document.querySelector('.privacy-page').getBoundingClientRect().width }));
-          assert.ok(Math.abs(widths.main - widths.privacy) < 1, 'Privacy must use the shared page width');
-          assert.equal(await page.locator('.privacy-details').evaluate(el => el.open), false);
+          const widths = await page.evaluate(() => ({
+            main: document.querySelector('main').getBoundingClientRect().width,
+            privacy: document.querySelector('.privacy-page').getBoundingClientRect().width,
+          }));
+          assert.ok(
+            Math.abs(widths.main - widths.privacy) < 1,
+            'Privacy must use the shared page width',
+          );
+          assert.equal(await page.locator('.privacy-details').evaluate((el) => el.open), false);
           await page.locator('.privacy-details summary').click();
           assert.equal(await page.locator('.storage-table').isVisible(), true);
-          assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, `Expanded privacy details overflow at ${width}px`);
+          assert.equal(
+            await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1),
+            false,
+            `Expanded privacy details overflow at ${width}px`,
+          );
         }
       }
     }
@@ -381,9 +344,7 @@ async function run() {
       await page.setViewportSize({ width, height: 1000 });
       await page.goto(`${base}/admin/leesroutes?id=${id}`);
       assert.equal(
-        await page.evaluate(
-          () => document.documentElement.scrollWidth > innerWidth + 1,
-        ),
+        await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1),
         false,
         `Editor overflows at ${width}px`,
       );
@@ -397,10 +358,7 @@ async function run() {
     await page.getByRole('button', { name: 'Leesroute opslaan' }).click();
     await page.waitForURL('**/admin/leesroutes?id=*');
     await page.goto(base + routeUrl);
-    assert.equal(
-      await page.locator('.path-stories h2').first().textContent(),
-      'Verhaal 05',
-    );
+    assert.equal(await page.locator('.path-stories h2').first().textContent(), 'Verhaal 05');
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto(base + '/leesroutes');
     assert.equal(
@@ -417,9 +375,7 @@ async function run() {
         .evaluate((el) => getComputedStyle(el).animationName),
       'none',
     );
-    console.log(
-      'Nine responsive widths, author pages, route editor and reduced motion: passed',
-    );
+    console.log('Nine responsive widths, author pages, route editor and reduced motion: passed');
     assert.deepEqual(errors, []);
     const blocked = await browser.newContext({
       viewport: { width: 390, height: 850 },
@@ -438,19 +394,14 @@ async function run() {
     await blockedPage.locator('[data-consent-reject]').click();
     await blockedPage.locator('.reading-preferences summary').click();
     await blockedPage.locator('[data-bookmark]').click();
-    assert.equal(
-      await blockedPage.locator('[data-bookmark]').getAttribute('aria-pressed'),
-      'true',
-    );
+    assert.equal(await blockedPage.locator('[data-bookmark]').getAttribute('aria-pressed'), 'true');
     assert.match(
       await blockedPage.locator('[data-reading-status]').textContent(),
       /alleen op deze pagina/,
     );
     await blockedPage.locator('[data-focus-toggle]').click();
     assert.equal(
-      await blockedPage
-        .locator('[data-focus-toggle]')
-        .getAttribute('aria-pressed'),
+      await blockedPage.locator('[data-focus-toggle]').getAttribute('aria-pressed'),
       'true',
     );
     await blockedPage.keyboard.press('Escape');
@@ -468,21 +419,13 @@ async function run() {
     });
     const plainPage = await plain.newPage();
     await plainPage.goto(base + '/posts/story-0');
-    assert.ok(
-      (await plainPage.locator('.body').textContent()).includes('Alinea 24'),
-    );
+    assert.ok((await plainPage.locator('.body').textContent()).includes('Alinea 24'));
     assert.equal(await plainPage.locator('[data-bookmark]').isVisible(), false);
-    assert.equal(
-      await plainPage.locator('[data-consent-banner]').isVisible(),
-      false,
-    );
+    assert.equal(await plainPage.locator('[data-consent-banner]').isVisible(), false);
     await plainPage.goto(base + routeUrl);
     assert.equal(await plainPage.locator('.path-number').count(), 3);
     await plainPage.goto(base + '/privacy');
-    assert.match(
-      await plainPage.locator('noscript').textContent(),
-      /JavaScript is uitgeschakeld/,
-    );
+    assert.match(await plainPage.locator('noscript').textContent(), /JavaScript is uitgeschakeld/);
     console.log('Unavailable storage and no-JavaScript reading: passed');
     await plain.close();
     await context.close();

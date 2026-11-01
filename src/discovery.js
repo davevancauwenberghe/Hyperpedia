@@ -21,16 +21,10 @@ function llmsText(posts, routes, siteUrl) {
       if (label.trim()) themes.set(label, (themes.get(label) || 0) + 1);
     }
   const themeLinks = [...themes]
-    .sort(
-      ([a, countA], [b, countB]) => countB - countA || a.localeCompare(b, 'nl'),
-    )
+    .sort(([a, countA], [b, countB]) => countB - countA || a.localeCompare(b, 'nl'))
     .slice(0, 12)
     .map(([label]) =>
-      link(
-        label,
-        `/?label=${encodeURIComponent(label)}`,
-        'Verhalen binnen dit thema.',
-      ),
+      link(label, `/?label=${encodeURIComponent(label)}`, 'Verhalen binnen dit thema.'),
     );
   const routeLinks = routes
     .slice(0, 6)
@@ -52,11 +46,7 @@ function llmsText(posts, routes, siteUrl) {
     '',
     '## Archief',
     '',
-    link(
-      'Alle verhalen',
-      '/',
-      'Zoeken, thema’s en paginering door het archief.',
-    ),
+    link('Alle verhalen', '/', 'Zoeken, thema’s en paginering door het archief.'),
     link('Leesroutes', '/leesroutes', 'Korte thematische selecties.'),
     link(
       'Sitemap',

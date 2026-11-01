@@ -1,6 +1,6 @@
 (() => {
   const script = document.currentScript;
-  const version = new URL(script.src).searchParams.get('v') || 'current';
+  const workerUrl = script.dataset.workerUrl || '/sw.js';
   const standalone = window.matchMedia('(display-mode: standalone)');
   const installed = () => standalone.matches || navigator.standalone === true;
   const button = document.querySelector('[data-install-app]');
@@ -9,14 +9,9 @@
   let installPrompt;
   let registering;
   function registerOffline() {
-    if (
-      !('serviceWorker' in navigator) ||
-      !window.isSecureContext ||
-      registering
-    )
-      return;
+    if (!('serviceWorker' in navigator) || !window.isSecureContext || registering) return;
     registering = navigator.serviceWorker
-      .register(`/sw.js?v=${encodeURIComponent(version)}`, {
+      .register(workerUrl, {
         scope: '/',
         updateViaCache: 'none',
       })
@@ -52,8 +47,7 @@
             ? 'Installatie gestart. Je kunt Hyperpedia vanaf je beginscherm openen.'
             : 'Je kunt Hyperpedia later ook via het browsermenu toevoegen.';
     } catch {
-      if (status)
-        status.textContent = 'Voeg Hyperpedia toe via het browsermenu.';
+      if (status) status.textContent = 'Voeg Hyperpedia toe via het browsermenu.';
     }
   });
   window.addEventListener('appinstalled', () => {

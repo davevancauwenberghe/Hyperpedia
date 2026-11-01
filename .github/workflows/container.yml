@@ -12,8 +12,8 @@ jobs:
     env:
       SESSION_SECRET: container-test-secret-not-a-production-secret-64-characters-long
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24
       - name: Validate and build the Coolify Compose image
@@ -32,15 +32,26 @@ jobs:
           s.saveAdmin('migration-admin', 'original-migration-password');
           s.savePosts([{id:'migration-story', title:'Original story', body:'Original text', replies:[{body:'Original reply'}]}]);
           s.recordPostRead('migration-story');
+          s.flushReadMetrics();
           JS
-          # The source Fly volume is root-owned; the default image must still read it.
-          docker compose create hyperpedia
-          migration_image="$(docker compose images -q hyperpedia)"
-          docker run --rm --network none --mount type=bind,src=/srv/hyperpedia/data,dst=/data -e REQUIRE_EXISTING_DATA=true "$migration_image" node scripts/check-data.js
           sudo chown -R 1000:1000 /srv/hyperpedia/data
+          docker compose create hyperpedia
+          container_image="$(docker compose images -q hyperpedia)"
+          test "$(docker image inspect --format '{{.Config.User}}' "$container_image")" = node
           docker compose up -d
       - name: Check non-root startup, original login and persistence after restart
         run: node scripts/check-container.js
+      - name: Verify Apache TLS and trusted Cloudflare forwarding
+        run: node scripts/check-apache.js
+      - name: Verify private log rotation and bounded retention
+        run: node scripts/check-logrotate.js
+      - name: Search and edit a larger archive within the container memory limit
+        run: |
+          container_image="$(docker compose images -q hyperpedia)"
+          docker run --rm --memory=512m --network=none \
+            --env NODE_OPTIONS=--max-old-space-size=256 \
+            --mount "type=bind,src=$PWD/scripts/benchmark-archive.js,dst=/app/scripts/benchmark-archive.js,readonly" \
+            "$container_image" node scripts/benchmark-archive.js 6000 --edits
       - name: Container logs on failure
         if: failure()
         run: docker compose logs --tail=60

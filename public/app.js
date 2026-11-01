@@ -6,9 +6,14 @@ const syncThemeControl = () => {
   const isDark = root.dataset.theme === 'dark';
   if (themeToggle) {
     themeToggle.setAttribute('aria-pressed', String(isDark));
-    themeToggle.setAttribute('aria-label', isDark ? 'Licht thema gebruiken' : 'Donker thema gebruiken');
+    themeToggle.setAttribute(
+      'aria-label',
+      isDark ? 'Licht thema gebruiken' : 'Donker thema gebruiken',
+    );
   }
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', isDark ? '#1d1916' : '#f7f1e8');
+  document
+    .querySelector('meta[name="theme-color"]')
+    ?.setAttribute('content', isDark ? '#1d1916' : '#f7f1e8');
 };
 
 syncThemeControl();
@@ -20,8 +25,11 @@ themeToggle?.addEventListener('click', () => {
   syncThemeControl();
 });
 
-window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
-  if (!explicitTheme) { root.dataset.theme = event.matches ? 'dark' : 'light'; syncThemeControl(); }
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (event) => {
+  if (!explicitTheme) {
+    root.dataset.theme = event.matches ? 'dark' : 'light';
+    syncThemeControl();
+  }
 });
 
 for (const control of document.querySelectorAll('select[data-reading-size]')) {
@@ -49,9 +57,12 @@ for (const carousel of document.querySelectorAll('[data-daily-stories]')) {
   const next = carousel.querySelector('[data-daily-next]');
   if (slides.length < 2) continue;
 
-  let activeIndex = Math.max(0, slides.findIndex(slide => slide.classList.contains('is-active')));
+  let activeIndex = Math.max(
+    0,
+    slides.findIndex((slide) => slide.classList.contains('is-active')),
+  );
 
-  const showStory = nextIndex => {
+  const showStory = (nextIndex) => {
     activeIndex = (nextIndex + slides.length) % slides.length;
     slides.forEach((slide, index) => {
       const isActive = index === activeIndex;
@@ -72,14 +83,19 @@ for (const carousel of document.querySelectorAll('[data-daily-stories]')) {
   next?.addEventListener('click', () => showStory(activeIndex + 1));
 }
 
-
 const openedPost = document.querySelector('[data-post-id]');
 let readCounted = false;
 function countRead() {
-  if (!openedPost?.dataset.postId || readCounted || !window.hyperpediaStorage.consent()?.statistics) return;
+  if (!openedPost?.dataset.postId || readCounted || !window.hyperpediaStorage.consent()?.statistics)
+    return;
   readCounted = true;
   const readUrl = `/posts/${encodeURIComponent(openedPost.dataset.postId)}/read`;
-  fetch(readUrl, { method: 'POST', credentials: 'omit', keepalive: true }).catch(() => {});
+  fetch(readUrl, {
+    method: 'POST',
+    headers: { 'X-Hyperpedia-Consent': 'statistics' },
+    credentials: 'omit',
+    keepalive: true,
+  }).catch(() => {});
 }
 countRead();
 window.addEventListener('hyperpedia:consent', countRead);
@@ -95,11 +111,18 @@ if (infoDialog) {
   };
   const closeInfoDialog = () => infoDialog.close?.() || infoDialog.removeAttribute('open');
 
-  openInfoButtons.forEach(button => button.addEventListener('click', openInfoDialog));
-  closeInfoButtons.forEach(button => button.addEventListener('click', closeInfoDialog));
-  infoDialog.addEventListener('click', event => {
+  openInfoButtons.forEach((button) => button.addEventListener('click', openInfoDialog));
+  closeInfoButtons.forEach((button) => button.addEventListener('click', closeInfoDialog));
+  infoDialog.addEventListener('click', (event) => {
     const rect = infoDialog.getBoundingClientRect();
-    if (event.target === infoDialog && (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom)) closeInfoDialog();
+    if (
+      event.target === infoDialog &&
+      (event.clientX < rect.left ||
+        event.clientX > rect.right ||
+        event.clientY < rect.top ||
+        event.clientY > rect.bottom)
+    )
+      closeInfoDialog();
   });
 }
 
@@ -108,7 +131,9 @@ if (storyActions) {
   storyActions.hidden = false;
   const link = storyActions.querySelector('[data-share-url]');
   const status = storyActions.querySelector('[data-action-status]');
-  const showStatus = message => { status.textContent = message; };
+  const showStatus = (message) => {
+    status.textContent = message;
+  };
   const copyLink = async () => {
     try {
       if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable');
@@ -125,8 +150,14 @@ if (storyActions) {
   const shareButton = storyActions.querySelector('[data-story-share]');
   shareButton.addEventListener('click', async () => {
     if (typeof navigator.share !== 'function') return copyLink();
-    try { await navigator.share({ title: document.querySelector('.story h1').textContent, url: link.value }); }
-    catch (error) { if (error.name !== 'AbortError') showStatus('Delen lukt niet. Gebruik Link kopiëren.'); }
+    try {
+      await navigator.share({
+        title: document.querySelector('.story h1').textContent,
+        url: link.value,
+      });
+    } catch (error) {
+      if (error.name !== 'AbortError') showStatus('Delen lukt niet. Gebruik Link kopiëren.');
+    }
   });
   storyActions.querySelector('[data-story-print]').addEventListener('click', () => window.print());
 }

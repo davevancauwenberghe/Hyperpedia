@@ -1,11 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { PassThrough } = require('node:stream');
-const {
-  readForm,
-  createLoginBodyReader,
-  LOGIN_BODY_LIMITS,
-} = require('../src/forms');
+const { readForm, createLoginBodyReader, LOGIN_BODY_LIMITS } = require('../src/forms');
 
 function request(headers = {}) {
   const stream = new PassThrough();

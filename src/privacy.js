@@ -4,6 +4,11 @@ const { icon } = require('./icons');
 function privacyPage() {
   const controller = process.env.PRIVACY_CONTROLLER;
   const contact = process.env.PRIVACY_CONTACT_URL;
+  const logDays = Number(process.env.PRIVACY_LOG_RETENTION_DAYS);
+  const logRetention =
+    Number.isInteger(logDays) && logDays >= 1 && logDays <= 365
+      ? `ongeveer ${logDays} dagen`
+      : 'volgens de ingestelde bewaartermijn van de hosting; vraag de beheerder naar de actuele termijn';
   let contactUrl;
   try {
     const parsed = new URL(contact);
@@ -37,7 +42,9 @@ function privacyPage() {
         <tr><th scope="row"><code>hyperpedia_session</code></th><td>Noodzakelijk: beveiligde cookie voor beheerlogin</td><td>Deze sessie; zeven dagen bij zelf gekozen aangemeld blijven</td></tr>
       </tbody></table></div>
       <p>Alle browseropslag blijft lokaal. Alleen de beheercookie wordt naar Hyperpedia gestuurd; uitloggen maakt de sessie ongeldig. Een geïnstalleerde webapp bewaart geen bezochte verhaalpagina’s en kan een eigen leeslijst hebben. Een privévenster sluiten kan lokale gegevens verwijderen.</p>
-      <p>De server en hostingprovider ontvangen technische verzoekgegevens, zoals je IP-adres, om pagina’s te leveren. Bij beheerlogin wordt dit tijdelijk gebruikt om mislukte pogingen te begrenzen. Verhalen en reacties blijven in het archief totdat de beheerder ze verwijdert. Verhaaltellingen bewaren geen IP-adressen: alleen totalen, totdat de beheerder ze verwijdert.</p>
+      <p>Contabo verzorgt de hosting. Cloudflare verwerkt als verwerker technisch webverkeer, waaronder IP-adressen, voor levering, caching en beveiliging van de website. Meer informatie vind je in <a href="https://www.cloudflare.com/privacypolicy/">het privacybeleid van Cloudflare</a>.</p>
+      <p>Technische serverlogs kunnen je IP-adres, tijdstip, opgevraagd pad en statuscode bevatten voor beveiliging en foutopsporing. We bewaren deze ${e(logRetention)}. De toegangslog bewaart geen zoektermen, verwijzende pagina of browseridentificatie. Deze logs worden niet gebruikt om een persoonlijk leesprofiel op te bouwen.</p>
+      <p>Bij beheerlogin wordt je netwerkadres tijdelijk gebruikt om mislukte pogingen te begrenzen. Met toestemming telt een verhaal hoogstens eenmaal per kwartier per netwerkadres mee. Misbruikbeveiliging gebruikt kortlevende sleutels in het servergeheugen; die worden na ongeveer een kwartier opgeruimd en verdwijnen bij een herstart. De verhaaltelling bewaart op schijf alleen totalen per verhaal, totdat de beheerder ze verwijdert. Verhalen en reacties blijven in het archief totdat de beheerder ze verwijdert. Eerdere versies kunnen nog in beveiligde herstelkopieën staan totdat die worden vervangen; neem voor een verwijderverzoek contact op met de beheerder.</p>
       <p>Delen opent de deelopties van je browser op jouw verzoek. Externe links laden pas als je ze opent; die diensten hebben hun eigen privacybeleid.</p></div>
     </details>
   </section>`;

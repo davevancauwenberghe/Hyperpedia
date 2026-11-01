@@ -18,11 +18,7 @@ function worker(fetcher) {
     fetch: fetcher,
     caches: {
       open: async () => cache,
-      keys: async () => [
-        'hyperpedia-shell-old',
-        'hyperpedia-shell-0.6.1',
-        'another-app',
-      ],
+      keys: async () => ['hyperpedia-shell-old', 'hyperpedia-shell-0.6.1', 'another-app'],
       delete: async (key) => deletions.push(key),
     },
     self: {
@@ -33,10 +29,7 @@ function worker(fetcher) {
       },
     },
   });
-  vm.runInContext(
-    fs.readFileSync(path.join(__dirname, '../public/sw.js'), 'utf8'),
-    context,
-  );
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/sw.js'), 'utf8'), context);
   const request = (pathname, options = {}) => {
     let response;
     handlers.fetch({
@@ -72,10 +65,7 @@ test('visited story HTML, including authenticated layouts, is never written to a
         headers: { 'Cache-Control': 'private, no-store' },
       }),
   );
-  assert.match(
-    await (await w.request('/posts/story')).text(),
-    /Private admin controls/,
-  );
+  assert.match(await (await w.request('/posts/story')).text(), /Private admin controls/);
   assert.deepEqual(w.writes, []);
 });
 

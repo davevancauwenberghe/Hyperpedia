@@ -9,10 +9,7 @@ async function within(promise) {
     return await Promise.race([
       promise,
       new Promise((_, reject) => {
-        timer = setTimeout(
-          () => reject(new Error('Delayed request timed out')),
-          10_000,
-        );
+        timer = setTimeout(() => reject(new Error('Delayed request timed out')), 10_000);
       }),
     ]);
   } finally {
@@ -29,9 +26,7 @@ const body =
     8,
   ) +
   '\n\nEen tweede alinea met een eigen gedachte. ' +
-  'We bewaren die tekst zonder de woorden van de auteur te veranderen. '.repeat(
-    6,
-  );
+  'We bewaren die tekst zonder de woorden van de auteur te veranderen. '.repeat(6);
 store.savePosts([
   ...Array.from({ length: 63 }, (_, i) => ({
     id: 'post-' + i,
@@ -115,38 +110,33 @@ const { server } = require('../src/server');
     await page.goto(base);
     await settle(24, 1);
     assert.equal(await page.locator('[data-post-grid] > .card').count(), 24);
-    assert.equal(
-      await page.locator('.site-header a[href="/login"]').count(),
-      0,
-    );
+    assert.equal(await page.locator('.site-header a[href="/login"]').count(), 0);
     assert.equal(
       await page.locator('meta[name="robots"]').getAttribute('content'),
       'index, follow, max-image-preview:large',
     );
-    await page
-      .getByRole('link', { name: 'Volgende pagina', exact: true })
-      .click();
+    await page.getByRole('link', { name: 'Volgende pagina', exact: true }).click();
     await settle(24, 2);
     assert.equal(
-      await page
-        .locator('[data-post-grid] > .card')
-        .first()
-        .getAttribute('data-story-id'),
+      await page.locator('[data-post-grid] > .card').first().getAttribute('data-story-id'),
       'post-24',
     );
     await page.goBack();
     await settle(24, 1);
     assert.equal(
-      await page
-        .locator('[data-post-grid] > .card')
-        .first()
-        .getAttribute('data-story-id'),
+      await page.locator('[data-post-grid] > .card').first().getAttribute('data-story-id'),
       'post-0',
     );
-    await page
-      .getByRole('link', { name: 'Volgende pagina', exact: true })
-      .click();
+    await page.getByRole('link', { name: 'Volgende pagina', exact: true }).click();
     await settle(24, 2);
+    // The resize assertion starts from a known reading position, after the
+    // navigation's scroll events have reached the document.
+    await page
+      .locator('[data-post-grid] > [data-story-id="post-24"]')
+      .evaluate((card) => card.scrollIntoView({ block: 'start', behavior: 'instant' }));
+    await page.evaluate(
+      () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+    );
     await page.setViewportSize({ width: 2560, height: 1000 });
     await settle(36, 1);
     assert.equal(await page.locator('[data-post-grid] > .card').count(), 36);
@@ -157,43 +147,24 @@ const { server } = require('../src/server');
       preserved.y >= 50 && preserved.y < 180,
       'Resize should keep the visible story in view: ' + preserved.y,
     );
-    console.log(
-      'Responsive counts, pagination, history and resize position: passed',
-    );
-    await page.goto(
-      base + '/posts/solo?from=' + encodeURIComponent('/?page=2&perPage=24'),
-    );
+    console.log('Responsive counts, pagination, history and resize position: passed');
+    await page.goto(base + '/posts/solo?from=' + encodeURIComponent('/?page=2&perPage=24'));
     await page.locator('.reading-preferences summary').click();
     const wide = await page.locator('.body').boundingBox();
     const parent = await page.locator('.story-content').boundingBox();
     assert.ok(wide.width >= parent.width - 2);
-    assert.equal(
-      await page.locator('.back-link').getAttribute('href'),
-      '/?page=2&perPage=24',
-    );
+    assert.equal(await page.locator('.back-link').getAttribute('href'), '/?page=2&perPage=24');
     await page.locator('[data-story-copy]').click();
-    assert.equal(
-      await page.evaluate(() => window.copiedLink),
-      base + '/posts/solo',
-    );
-    assert.match(
-      await page.locator('[data-action-status]').textContent(),
-      /gekopieerd/,
-    );
+    assert.equal(await page.evaluate(() => window.copiedLink), base + '/posts/solo');
+    assert.match(await page.locator('[data-action-status]').textContent(), /gekopieerd/);
     await page.locator('[data-story-share]').click();
-    assert.equal(
-      await page.evaluate(() => window.sharedStory.url),
-      base + '/posts/solo',
-    );
+    assert.equal(await page.evaluate(() => window.sharedStory.url), base + '/posts/solo');
     await page.locator('[data-story-print]').click();
     assert.equal(await page.evaluate(() => window.printCalled), true);
     await page.locator('select[data-reading-width]').selectOption('focused');
     assert.ok((await page.locator('.body').boundingBox()).width < wide.width);
     await page.reload();
-    assert.equal(
-      await page.locator('select[data-reading-width]').inputValue(),
-      'focused',
-    );
+    assert.equal(await page.locator('select[data-reading-width]').inputValue(), 'focused');
     await page.locator('select[data-reading-width]').selectOption('wide');
     await page.evaluate(() =>
       Object.defineProperty(navigator, 'clipboard', {
@@ -207,10 +178,7 @@ const { server } = require('../src/server');
     );
     await page.locator('[data-story-copy]').click();
     assert.equal(await page.locator('[data-share-url]').isVisible(), true);
-    assert.match(
-      await page.locator('[data-action-status]').textContent(),
-      /kopieer/,
-    );
+    assert.match(await page.locator('[data-action-status]').textContent(), /kopieer/);
     await page.emulateMedia({ media: 'print' });
     assert.equal(await page.locator('[data-story-actions]').isVisible(), false);
     assert.equal(
@@ -230,25 +198,24 @@ const { server } = require('../src/server');
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto(base);
     await settle(24, 1);
-    const failure = (url) =>
-      url.pathname === '/' && url.searchParams.get('perPage') === '36';
+    await page.getByRole('link', { name: 'Volgende pagina', exact: true }).click();
+    await settle(24, 2);
+    const failure = (url) => url.pathname === '/' && url.searchParams.get('perPage') === '36';
     await page.route(failure, (route) => route.abort());
     await page.setViewportSize({ width: 2560, height: 1000 });
-    await page
-      .locator('.archive-status')
-      .filter({ hasText: 'lukt momenteel niet' })
-      .waitFor();
+    await page.locator('.archive-status').filter({ hasText: 'lukt momenteel niet' }).waitFor();
     assert.equal(await page.locator('[data-post-grid] > .card').count(), 24);
     await page.unroute(failure);
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.setViewportSize({ width: 1920, height: 1000 });
     await settle(30, 1);
     assert.equal(await page.locator('[data-post-grid] > .card').count(), 30);
-    console.log(
-      'Failed adaptive fetch preserves readable content and recovers: passed',
-    );
+    console.log('Failed adaptive fetch preserves readable content and recovers: passed');
     await page.setViewportSize({ width: 1440, height: 1000 });
-    await settle(24, 1);
+    // Start the delayed-response scenario at a known offset; the preceding
+    // five-column reflow can legitimately change which row is first in view.
+    await page.goto(base + '/?page=2&perPage=24');
+    await settle(24, 2);
     let releaseResponse;
     let requestStarted;
     let responseHandled;
@@ -261,8 +228,7 @@ const { server } = require('../src/server');
     const handled = new Promise((resolve) => {
       responseHandled = resolve;
     });
-    const delayed = (url) =>
-      url.pathname === '/' && url.searchParams.get('perPage') === '36';
+    const delayed = (url) => url.pathname === '/' && url.searchParams.get('perPage') === '36';
     await page.route(delayed, async (route) => {
       const response = await route.fetch();
       requestStarted();
@@ -278,22 +244,15 @@ const { server } = require('../src/server');
     await page.setViewportSize({ width: 2560, height: 1000 });
     await within(started);
     await page.setViewportSize({ width: 1440, height: 1000 });
-    await page.waitForFunction(
-      () => document.querySelector('.archive-status').textContent === '',
-    );
+    await page.waitForFunction(() => document.querySelector('.archive-status').textContent === '');
     releaseResponse();
     await within(handled);
     await page.waitForTimeout(300);
-    assert.equal(
-      await page.locator('[data-post-grid]').getAttribute('data-per-page'),
-      '24',
-    );
+    assert.equal(await page.locator('[data-post-grid]').getAttribute('data-per-page'), '24');
     assert.equal(await page.locator('[data-post-grid] > .card').count(), 24);
     assert.equal(new URL(page.url()).searchParams.get('perPage'), '24');
     await page.unroute(delayed);
-    console.log(
-      'Returning to the previous width rejects a delayed resize response: passed',
-    );
+    console.log('Returning to the previous width rejects a delayed resize response: passed');
     let releaseNavigation;
     let navigationStarted;
     let navigationHandled;
@@ -322,40 +281,23 @@ const { server } = require('../src/server');
         navigationHandled();
       }
     });
-    await page
-      .locator('[data-page-select]')
-      .selectOption('/?page=3&perPage=24');
+    await page.locator('[data-page-select]').selectOption('3');
+    await page.getByRole('button', { name: 'Ga', exact: true }).click();
     await within(navigating);
     await page.setViewportSize({ width: 1480, height: 1000 });
     await page.waitForTimeout(350);
-    assert.equal(
-      await page.locator('[data-post-grid]').getAttribute('aria-busy'),
-      'true',
-    );
+    assert.equal(await page.locator('[data-post-grid]').getAttribute('aria-busy'), 'true');
     await page.setViewportSize({ width: 2560, height: 1000 });
     await settle(36, 2);
     releaseNavigation();
     await within(navigated);
     await page.waitForTimeout(300);
-    assert.equal(
-      await page.locator('[data-post-grid]').getAttribute('data-per-page'),
-      '36',
-    );
-    assert.equal(
-      await page.locator('[data-post-grid]').getAttribute('data-page'),
-      '2',
-    );
-    assert.equal(
-      await page
-        .locator('[data-post-grid] > [data-story-id="post-48"]')
-        .count(),
-      1,
-    );
+    assert.equal(await page.locator('[data-post-grid]').getAttribute('data-per-page'), '36');
+    assert.equal(await page.locator('[data-post-grid]').getAttribute('data-page'), '2');
+    assert.equal(await page.locator('[data-post-grid] > [data-story-id="post-48"]').count(), 1);
     assert.equal(new URL(page.url()).searchParams.get('page'), '2');
     await page.unroute(delayedNavigation);
-    console.log(
-      'Resizing during pagination keeps the requested archive position: passed',
-    );
+    console.log('Resizing during pagination keeps the requested archive position: passed');
     assert.deepEqual(errors, []);
     await context.close();
   } finally {

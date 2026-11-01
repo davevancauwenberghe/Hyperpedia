@@ -42,8 +42,7 @@
   const clean = (value) =>
     Object.fromEntries(
       Object.entries(value || {}).filter(
-        ([key, option]) =>
-          Array.isArray(allowed[key]) && allowed[key].includes(option),
+        ([key, option]) => Array.isArray(allowed[key]) && allowed[key].includes(option),
       ),
     );
   let choice = read('localStorage', consentKey);
@@ -108,8 +107,7 @@
       write('sessionStorage', sessionKey, preferences);
       const durable = write('localStorage', consentKey, choice);
       ephemeralChoice = !durable;
-      if (choice.preferences && durable)
-        write('localStorage', preferenceKey, preferences);
+      if (choice.preferences && durable) write('localStorage', preferenceKey, preferences);
       else remove('localStorage', preferenceKey);
       window.dispatchEvent(new CustomEvent('hyperpedia:consent'));
       return durable;

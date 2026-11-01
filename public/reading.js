@@ -32,10 +32,7 @@
               entry.id,
               {
                 id: entry.id,
-                title:
-                  typeof entry.title === 'string'
-                    ? entry.title.slice(0, 300)
-                    : 'Verhaal',
+                title: typeof entry.title === 'string' ? entry.title.slice(0, 300) : 'Verhaal',
                 savedAt: entry.savedAt,
               },
             ]),
@@ -59,8 +56,7 @@
     try {
       state = normalize(JSON.parse(current || 'null'));
     } catch {}
-    if (current && current !== JSON.stringify(state))
-      storage.setItem(key, JSON.stringify(state));
+    if (current && current !== JSON.stringify(state)) storage.setItem(key, JSON.stringify(state));
   } catch {
     durable = false;
   }
@@ -87,9 +83,7 @@
         'aria-label',
         `${saved ? 'Verwijder uit je leeslijst:' : 'Bewaar'} ${button.dataset.bookmarkTitle}`,
       );
-      button.querySelector('[data-bookmark-label]').textContent = saved
-        ? 'Bewaard'
-        : 'Bewaren';
+      button.querySelector('[data-bookmark-label]').textContent = saved ? 'Bewaard' : 'Bewaren';
     }
   }
   function announce(message) {
@@ -99,9 +93,7 @@
     if (status)
       status.textContent =
         message +
-        (durable
-          ? ''
-          : ' Opslag is niet beschikbaar; de wijziging blijft alleen op deze pagina.');
+        (durable ? '' : ' Opslag is niet beschikbaar; de wijziging blijft alleen op deze pagina.');
   }
   let catalogLoaded = false;
   let catalogFailed = false;
@@ -114,8 +106,7 @@
     const author = document.createElement('p');
     author.className = 'eyebrow';
     author.textContent =
-      post?.author ||
-      (unavailable ? 'Niet meer in het archief' : 'Bewaard in deze browser');
+      post?.author || (unavailable ? 'Niet meer in het archief' : 'Bewaard in deze browser');
     const heading = document.createElement('h3');
     const title = post?.title || entry.title;
     if (unavailable) heading.textContent = title;
@@ -152,8 +143,7 @@
     document.querySelector('[data-saved-count]').textContent =
       `${state.saved.length} ${state.saved.length === 1 ? 'verhaal' : 'verhalen'}`;
     document.querySelector('[data-library-controls]').hidden = false;
-    document.querySelector('[data-clear-library]').disabled =
-      !state.saved.length;
+    document.querySelector('[data-clear-library]').disabled = !state.saved.length;
     if (!durable)
       document.querySelector('[data-library-note]').textContent =
         'Opslag in deze browser is niet beschikbaar. Je wijzigingen blijven alleen op deze pagina.';
@@ -171,8 +161,7 @@
         current.saved = current.saved.filter((entry) => entry.id !== id);
         message = 'Verhaal uit je leeslijst verwijderd.';
       } else if (current.saved.length >= 300)
-        message =
-          'Je leeslijst bevat al 300 verhalen. Verwijder eerst een verhaal.';
+        message = 'Je leeslijst bevat al 300 verhalen. Verwijder eerst een verhaal.';
       else {
         current.saved.push({
           id,
@@ -192,29 +181,23 @@
     if (catalogLoaded) renderLibrary();
   });
   const dialog = document.querySelector('[data-clear-dialog]');
-  document
-    .querySelector('[data-clear-library]')
-    ?.addEventListener('click', () => {
-      if (dialog.showModal) dialog.showModal();
-      else dialog.setAttribute('open', '');
-    });
+  document.querySelector('[data-clear-library]')?.addEventListener('click', () => {
+    if (dialog.showModal) dialog.showModal();
+    else dialog.setAttribute('open', '');
+  });
   const closeDialog = () => {
     if (dialog.close) dialog.close();
     else dialog.removeAttribute('open');
   };
-  document
-    .querySelector('[data-cancel-clear]')
-    ?.addEventListener('click', closeDialog);
-  document
-    .querySelector('[data-confirm-clear]')
-    ?.addEventListener('click', () => {
-      update((current) => {
-        current.saved = [];
-      });
-      closeDialog();
-      announce('Je leeslijst is gewist in deze browser.');
-      document.querySelector('#saved-heading').focus();
+  document.querySelector('[data-cancel-clear]')?.addEventListener('click', closeDialog);
+  document.querySelector('[data-confirm-clear]')?.addEventListener('click', () => {
+    update((current) => {
+      current.saved = [];
     });
+    closeDialog();
+    announce('Je leeslijst is gewist in deze browser.');
+    document.querySelector('#saved-heading').focus();
+  });
   syncBookmarks();
   if (document.querySelector('[data-saved-list]')) {
     const controller = new AbortController();
@@ -230,9 +213,7 @@
       .then((value) => {
         if (!Array.isArray(value.posts)) throw new Error('Invalid catalog');
         catalog = new Map(
-          value.posts
-            .filter((post) => typeof post?.id === 'string')
-            .map((post) => [post.id, post]),
+          value.posts.filter((post) => typeof post?.id === 'string').map((post) => [post.id, post]),
         );
       })
       .catch(() => {
@@ -251,15 +232,11 @@
   const reader = document.querySelector('[data-reader]');
   if (!reader) return;
   const preferences = reader.querySelector('.reading-preferences');
-  preferences.open =
-    window.hyperpediaStorage.get('reading-preferences-open') === 'true';
+  preferences.open = window.hyperpediaStorage.get('reading-preferences-open') === 'true';
   preferences.querySelector('summary').addEventListener('click', () => {
     // Summary's default action toggles after click dispatch. Save the intended
     // state synchronously so even an immediate refresh keeps the user's choice.
-    window.hyperpediaStorage.set(
-      'reading-preferences-open',
-      String(!preferences.open),
-    );
+    window.hyperpediaStorage.set('reading-preferences-open', String(!preferences.open));
   });
   const focusButton = reader.querySelector('[data-focus-toggle]');
   function setFocus(enabled, remember) {
@@ -269,8 +246,7 @@
       ? 'Focus verlaten'
       : 'Focus';
     reader.querySelector('[data-focus-summary]').hidden = !enabled;
-    if (remember)
-      window.hyperpediaStorage.set('reading-focus', String(enabled));
+    if (remember) window.hyperpediaStorage.set('reading-focus', String(enabled));
   }
   focusButton.hidden = false;
   setFocus(window.hyperpediaStorage.get('reading-focus') === 'true', false);

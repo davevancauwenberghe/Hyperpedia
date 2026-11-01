@@ -1,9 +1,4 @@
 const crypto = require('node:crypto');
-const {
-  allPosts,
-  getPathDefinitions,
-  savePathDefinitions,
-} = require('./store');
 const { readForm } = require('./forms');
 const {
   readingPaths,
@@ -17,26 +12,23 @@ const ui = require('./reading-ui');
 const revision = (definitions) =>
   crypto.createHash('sha256').update(JSON.stringify(definitions)).digest('hex');
 
-function availablePaths(posts) {
+const pathCache = new WeakMap();
+function availablePaths(posts, store = require('./store')) {
   try {
-    return readingPaths(posts, getPathDefinitions());
+    const definitions = store.getPathDefinitions();
+    const cached = pathCache.get(posts);
+    if (cached?.definitions === definitions) return cached.routes;
+    const routes = readingPaths(posts, definitions);
+    pathCache.set(posts, { definitions, routes });
+    return routes;
   } catch (error) {
-    console.warn(
-      'Reading path selections are unreadable; using theme routes:',
-      error.message,
-    );
+    console.warn('Reading path selections are unreadable; using theme routes:', error.message);
     return readingPaths(posts);
   }
 }
 
-function createReadingPages({
-  layout,
-  send,
-  redirect,
-  requireAdmin,
-  getSiteUrl,
-  isAdmin,
-}) {
+function createReadingPages({ layout, send, redirect, requireAdmin, getSiteUrl, isAdmin, store }) {
+  const { allPosts, getPathDefinitions, savePathDefinitions } = store;
   return async function handle(req, res, method) {
     const pathname = req.urlObj.pathname;
     const options = {
@@ -85,7 +77,7 @@ function createReadingPages({
       method === 'GET' &&
       (pathname === '/leesroutes' || /^\/leesroutes\/[^/]+$/.test(pathname))
     ) {
-      const routes = availablePaths(allPosts());
+      const routes = availablePaths(allPosts(), store);
       if (pathname === '/leesroutes')
         send(res, layout('Leesroutes', ui.pathsPage(routes), options));
       else {
@@ -104,48 +96,34 @@ function createReadingPages({
       }
       return true;
     }
-    const attribution = pathname.match(
-      /^\/bronvermelding\/([^/]+)(?:\/reacties\/([^/]+))?$/,
-    );
+    const attribution = pathname.match(/^\/bronvermelding\/([^/]+)(?:\/reacties\/([^/]+))?$/);
     if (method === 'GET' && attribution) {
-      const post = allPosts().find(
-        (post) => post.id === decodeURIComponent(attribution[1]),
-      );
+      const post = allPosts().find((post) => post.id === decodeURIComponent(attribution[1]));
       const key = attribution[2] && decodeURIComponent(attribution[2]);
       const reply =
-        post &&
-        key &&
-        post.replies.find((reply, index) => replyKey(reply, index) === key);
+        post && key && post.replies.find((reply, index) => replyKey(reply, index) === key);
       if (!post || (key && !reply)) notFound();
       else {
         const name = reply ? reply.author || 'Beheerder' : post.author;
         const person = authorData(name, pathname, getSiteUrl(req));
         send(
           res,
-          layout(
-            `Bronvermelding: ${name}`,
-            ui.attributionPage(post, name, reply, key),
-            {
-              ...options,
-              robots: 'noindex, follow',
-              structuredData: {
-                '@context': 'https://schema.org',
-                '@type': 'WebPage',
-                url: new URL(pathname, getSiteUrl(req)).href,
-                name: `Bronvermelding: ${name}`,
-                mainEntity: person,
-              },
+          layout(`Bronvermelding: ${name}`, ui.attributionPage(post, name, reply, key), {
+            ...options,
+            robots: 'noindex, follow',
+            structuredData: {
+              '@context': 'https://schema.org',
+              '@type': 'WebPage',
+              url: new URL(pathname, getSiteUrl(req)).href,
+              name: `Bronvermelding: ${name}`,
+              mainEntity: person,
             },
-          ),
+          }),
         );
       }
       return true;
     }
-    if (
-      pathname !== '/admin/leesroutes' &&
-      pathname !== '/admin/leesroutes/reset'
-    )
-      return false;
+    if (pathname !== '/admin/leesroutes' && pathname !== '/admin/leesroutes/reset') return false;
     if (requireAdmin(req, res)) return true;
     const posts = allPosts();
     const definitions = getPathDefinitions();
@@ -153,21 +131,14 @@ function createReadingPages({
       const routes = readingPaths(posts, definitions);
       const id = req.urlObj.searchParams.get('id');
       const current =
-        routes.find((route) => route.id === id) ||
-        definitions.find((route) => route.id === id);
+        routes.find((route) => route.id === id) || definitions.find((route) => route.id === id);
       if (id && !current) notFound();
       else
         send(
           res,
           layout(
             'Leesroutes beheren',
-            ui.pathEditor(
-              routes,
-              posts,
-              definitions,
-              revision(definitions),
-              current,
-            ),
+            ui.pathEditor(routes, posts, definitions, revision(definitions), current),
             { ...options, robots: 'noindex, nofollow' },
           ),
         );
@@ -203,12 +174,9 @@ function createReadingPages({
       }
       return true;
     }
-    const postIds = [1, 2, 3, 4, 5]
-      .map((index) => body[`post${index}`])
-      .filter(Boolean);
+    const postIds = [1, 2, 3, 4, 5].map((index) => body[`post${index}`]).filter(Boolean);
     const id =
-      body.id ||
-      `${themeId(body.title || 'leesroute')}-${crypto.randomBytes(3).toString('hex')}`;
+      body.id || `${themeId(body.title || 'leesroute')}-${crypto.randomBytes(3).toString('hex')}`;
     const definition = {
       id,
       title: (body.title || '').trim(),
@@ -219,13 +187,10 @@ function createReadingPages({
     try {
       validatePathDefinitions(next);
       const existingIds = new Set(allPosts().map((post) => post.id));
-      if (postIds.some((id) => !existingIds.has(id)))
-        throw new Error('Missing story');
+      if (postIds.some((id) => !existingIds.has(id))) throw new Error('Missing story');
     } catch {
       throw Object.assign(
-        new Error(
-          'Kies drie tot vijf verschillende, bestaande verhalen en een korte titel.',
-        ),
+        new Error('Kies drie tot vijf verschillende, bestaande verhalen en een korte titel.'),
         { status: 400 },
       );
     }

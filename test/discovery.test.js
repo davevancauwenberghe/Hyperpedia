@@ -29,11 +29,7 @@ test('AI guide uses bounded live themes and routes, canonical links and archive 
 });
 
 test('AI guide safely formats unusual theme text and an empty archive', () => {
-  const guide = llmsText(
-    [{ labels: ['[onrust]\n<test>(nacht)'] }],
-    [],
-    'https://example.org',
-  );
+  const guide = llmsText([{ labels: ['[onrust]\n<test>(nacht)'] }], [], 'https://example.org');
   assert.match(guide, /\\\[onrust\\\] \\<test\\>/);
   assert.match(guide, /%5Bonrust%5D%0A%3Ctest%3E%28nacht%29/);
   const empty = llmsText([], [], 'https://example.org');

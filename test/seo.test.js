@@ -3,7 +3,11 @@ const assert = require('node:assert/strict');
 const { sitemapDocuments } = require('../src/seo');
 
 test('sitemap covers all posts, topic archives and pagination with genuine dates', () => {
-  const posts = Array.from({ length: 37 }, (_, i) => ({ id: `post-${i}`, labels: ['stress & ademhaling'], updated_at: i ? undefined : '2026-10-10T12:00:00Z' }));
+  const posts = Array.from({ length: 37 }, (_, i) => ({
+    id: `post-${i}`,
+    labels: ['stress & ademhaling'],
+    updated_at: i ? undefined : '2026-10-10T12:00:00Z',
+  }));
   const { root } = sitemapDocuments(posts, 'https://hyperpedia.app/');
   assert.equal((root.match(/<url>/g) || []).length, 43);
   assert.match(root, /\?page=3<\/loc>/);

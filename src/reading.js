@@ -26,9 +26,7 @@ function replyHref(post, key) {
 }
 function attributionPath(post, reply, index) {
   const base = `/bronvermelding/${encodeURIComponent(post.id)}`;
-  return reply
-    ? `${base}/reacties/${encodeURIComponent(replyKey(reply, index))}`
-    : base;
+  return reply ? `${base}/reacties/${encodeURIComponent(replyKey(reply, index))}` : base;
 }
 function authorData(name, path, siteUrl) {
   const url = new URL(path, siteUrl).href;
@@ -51,9 +49,7 @@ function readingPaths(posts, definitions = []) {
     (a, b) => a.title.localeCompare(b.title, 'nl') || a.id.localeCompare(b.id),
   );
   for (const post of ordered)
-    for (const label of new Set(
-      (post.labels || []).filter((label) => label.trim()),
-    )) {
+    for (const label of new Set((post.labels || []).filter((label) => label.trim()))) {
       if (!labels.has(label)) labels.set(label, []);
       labels.get(label).push(post.id);
     }

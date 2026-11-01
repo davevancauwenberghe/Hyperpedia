@@ -9,8 +9,7 @@ const assets = [
   '/storage.js',
   '/theme.js',
 ];
-const privatePath = (path) =>
-  /^\/(?:admin(?:\/|$)|login(?:\/|$)|logout(?:\/|$))/.test(path);
+const privatePath = (path) => /^\/(?:admin(?:\/|$)|login(?:\/|$)|logout(?:\/|$))/.test(path);
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -34,9 +33,7 @@ self.addEventListener('activate', (event) => {
     (async () => {
       await Promise.all(
         (await caches.keys())
-          .filter(
-            (key) => key.startsWith('hyperpedia-shell-') && key !== cacheName,
-          )
+          .filter((key) => key.startsWith('hyperpedia-shell-') && key !== cacheName)
           .map((key) => caches.delete(key)),
       );
       await self.clients.claim();
@@ -46,11 +43,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
-  if (
-    request.method !== 'GET' ||
-    url.origin !== self.location.origin ||
-    privatePath(url.pathname)
-  )
+  if (request.method !== 'GET' || url.origin !== self.location.origin || privatePath(url.pathname))
     return;
   if (request.mode === 'navigate') {
     event.respondWith(
@@ -58,13 +51,23 @@ self.addEventListener('fetch', (event) => {
         try {
           return await fetch(request);
         } catch {
-          const fallback = await (
-            await caches.open(cacheName)
-          ).match('/offline.html');
+          const fallback = await (await caches.open(cacheName)).match('/offline.html');
           if (!fallback) return Response.error();
           return new Response(await fallback.arrayBuffer(), {
             status: 503,
             headers: {
+              ...Object.fromEntries(
+                [
+                  'Content-Security-Policy',
+                  'Content-Security-Policy-Report-Only',
+                  'Permissions-Policy',
+                  'X-Content-Type-Options',
+                  'Referrer-Policy',
+                  'X-Frame-Options',
+                ]
+                  .map((name) => [name, fallback.headers.get(name)])
+                  .filter(([, value]) => value),
+              ),
               'Content-Type': 'text/html; charset=utf-8',
               'Cache-Control': 'no-store',
               'X-Robots-Tag': 'noindex, nofollow',
@@ -78,14 +81,10 @@ self.addEventListener('fetch', (event) => {
       (async () => {
         const cache = await caches.open(cacheName);
         try {
-          const response = await fetch(
-            new Request(request, { credentials: 'omit' }),
-          );
+          const response = await fetch(new Request(request, { credentials: 'omit' }));
           if (
             response.ok &&
-            !/private|no-store/i.test(
-              response.headers.get('Cache-Control') || '',
-            )
+            !/private|no-store/i.test(response.headers.get('Cache-Control') || '')
           ) {
             try {
               await cache.put(url.pathname, response.clone());

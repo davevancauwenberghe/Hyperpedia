@@ -26,9 +26,7 @@ test('theme routes are bounded, deterministic and can be overridden by an ordere
     },
   ];
   validatePathDefinitions(definitions);
-  const selected = readingPaths(posts, definitions).find(
-    (route) => route.id === definitions[0].id,
-  );
+  const selected = readingPaths(posts, definitions).find((route) => route.id === definitions[0].id);
   assert.equal(selected.automatic, false);
   assert.deepEqual(
     selected.posts.map((post) => post.id),
@@ -43,9 +41,7 @@ test('theme routes are bounded, deterministic and can be overridden by an ordere
       .posts.map((post) => post.id),
     ['5', '1'],
   );
-  assert.throws(() =>
-    validatePathDefinitions([{ ...definitions[0], postIds: ['1', '1', '2'] }]),
-  );
+  assert.throws(() => validatePathDefinitions([{ ...definitions[0], postIds: ['1', '1', '2'] }]));
 });
 
 test('author attribution URLs distinguish contributions and safely handle legacy replies', () => {
@@ -55,12 +51,6 @@ test('author attribution URLs distinguish contributions and safely handle legacy
   assert.equal(attributionPath(first), '/bronvermelding/a%2Fb');
   const reply = { author: 'Dezelfde naam', body: 'Een reactie' };
   assert.notEqual(replyKey(reply, 0), replyKey(reply, 1));
-  assert.notEqual(
-    replyKey(reply, 0),
-    replyKey({ ...reply, body: 'Gewijzigd' }, 0),
-  );
-  assert.match(
-    attributionPath(first, { id: 'reply/id' }, 0),
-    /reacties\/id-reply%2Fid$/,
-  );
+  assert.notEqual(replyKey(reply, 0), replyKey({ ...reply, body: 'Gewijzigd' }, 0));
+  assert.match(attributionPath(first, { id: 'reply/id' }, 0), /reacties\/id-reply%2Fid$/);
 });
