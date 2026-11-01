@@ -99,10 +99,15 @@ async function run() {
     const oldCaches = await page.evaluate(() => caches.keys());
     fs.appendFileSync(path.join(publicDir, 'style.css'), '\n/* installed-app-hotfix */\n');
     await page.reload();
-    await page.waitForFunction(
-      (previous) => navigator.serviceWorker.controller?.scriptURL !== previous,
-      oldWorker,
-    );
+    await page.waitForFunction(async (previous) => {
+      const registration = await navigator.serviceWorker.getRegistration();
+      const controller = navigator.serviceWorker.controller;
+      return (
+        controller &&
+        controller.scriptURL !== previous &&
+        registration?.active?.state === 'activated'
+      );
+    }, oldWorker);
     const updatedCaches = await page.evaluate(() => caches.keys());
     assert.equal(updatedCaches.filter((name) => name.startsWith('hyperpedia-shell-')).length, 1);
     assert.ok(oldCaches.every((name) => !updatedCaches.includes(name)));
