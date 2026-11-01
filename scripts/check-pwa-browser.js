@@ -109,8 +109,25 @@ async function run() {
       );
     }, oldWorker);
     const updatedCaches = await page.evaluate(() => caches.keys());
-    assert.equal(updatedCaches.filter((name) => name.startsWith('hyperpedia-shell-')).length, 1);
-    assert.ok(oldCaches.every((name) => !updatedCaches.includes(name)));
+    const workerStates = await Promise.all(
+      context.serviceWorkers().map(async (worker) => {
+        try {
+          return await worker.evaluate('({location: self.location.href, cacheName, version})');
+        } catch {
+          return { closed: true };
+        }
+      }),
+    );
+    const updateState = JSON.stringify({ oldWorker, oldCaches, updatedCaches, workerStates });
+    assert.equal(
+      updatedCaches.filter((name) => name.startsWith('hyperpedia-shell-')).length,
+      1,
+      updateState,
+    );
+    assert.ok(
+      oldCaches.every((name) => !updatedCaches.includes(name)),
+      updateState,
+    );
     assert.match(
       await page.evaluate(async () => {
         const cache = await caches.open(

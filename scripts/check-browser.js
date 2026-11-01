@@ -129,6 +129,14 @@ const { server } = require('../src/server');
     );
     await page.getByRole('link', { name: 'Volgende pagina', exact: true }).click();
     await settle(24, 2);
+    // The resize assertion starts from a known reading position, after the
+    // navigation's scroll events have reached the document.
+    await page
+      .locator('[data-post-grid] > [data-story-id="post-24"]')
+      .evaluate((card) => card.scrollIntoView({ block: 'start', behavior: 'instant' }));
+    await page.evaluate(
+      () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+    );
     await page.setViewportSize({ width: 2560, height: 1000 });
     await settle(36, 1);
     assert.equal(await page.locator('[data-post-grid] > .card').count(), 36);
