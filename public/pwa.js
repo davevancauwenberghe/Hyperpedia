@@ -1,6 +1,6 @@
 (() => {
   const script = document.currentScript;
-  const version = new URL(script.src).searchParams.get('v') || 'current';
+  const workerUrl = script.dataset.workerUrl || '/sw.js';
   const standalone = window.matchMedia('(display-mode: standalone)');
   const installed = () => standalone.matches || navigator.standalone === true;
   const button = document.querySelector('[data-install-app]');
@@ -11,7 +11,7 @@
   function registerOffline() {
     if (!('serviceWorker' in navigator) || !window.isSecureContext || registering) return;
     registering = navigator.serviceWorker
-      .register(`/sw.js?v=${encodeURIComponent(version)}`, {
+      .register(workerUrl, {
         scope: '/',
         updateViaCache: 'none',
       })

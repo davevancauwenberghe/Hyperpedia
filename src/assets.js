@@ -27,7 +27,6 @@ const assets = {
   'social-preview.svg': 'image/svg+xml',
   'site.webmanifest': 'application/manifest+json',
 };
-const cache = new Map();
 function encodingFor(header, compressed) {
   const accepted = String(header || '')
     .split(',')
@@ -46,76 +45,106 @@ function encodingFor(header, compressed) {
     .filter((item) => item.q > 0 && item.q <= 1 && compressed[item.name])
     .sort((a, b) => b.q - a.q)[0]?.name;
 }
-function serveAsset(req, res, version) {
-  const name = req.urlObj.pathname.slice(1);
-  const mime = assets[name];
-  if (!mime) return false;
-  if (!['GET', 'HEAD'].includes(req.method)) {
-    res.writeHead(405, { Allow: 'GET, HEAD', 'Content-Type': 'text/plain; charset=utf-8' });
-    res.end('Methode niet toegestaan');
-    return true;
-  }
-  const file = path.join(__dirname, '..', 'public', name);
-  const stat = fs.statSync(file);
-  const signature = `${stat.ino}:${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}`;
-  let asset = cache.get(name);
-  if (asset?.signature !== signature) {
-    const identity = fs.readFileSync(file);
-    const compressed = { identity };
-    if (/text|javascript|json|svg/.test(mime) && identity.length >= 512) {
-      compressed.gzip = zlib.gzipSync(identity);
-      compressed.br = zlib.brotliCompressSync(identity, {
-        params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 4 },
-      });
+function createAssetService(directory = path.join(__dirname, '..', 'public')) {
+  const cache = new Map();
+  function loadAsset(name) {
+    if (!Object.hasOwn(assets, name)) throw new Error('Unknown public asset.');
+    const mime = assets[name];
+    const file = path.join(directory, name);
+    const stat = fs.statSync(file);
+    const signature = `${stat.ino}:${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}`;
+    let asset = cache.get(name);
+    if (asset?.signature !== signature) {
+      const identity = fs.readFileSync(file);
+      const compressed = { identity };
+      if (/text|javascript|json|svg/.test(mime) && identity.length >= 512) {
+        compressed.gzip = zlib.gzipSync(identity);
+        compressed.br = zlib.brotliCompressSync(identity, {
+          params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 4 },
+        });
+      }
+      asset = {
+        signature,
+        compressed,
+        etags: Object.fromEntries(
+          Object.entries(compressed).map(([key, body]) => [
+            key,
+            `"${crypto.createHash('sha256').update(body).digest('base64url')}"`,
+          ]),
+        ),
+      };
+      cache.set(name, asset);
     }
-    asset = {
-      signature,
-      compressed,
-      etags: Object.fromEntries(
-        Object.entries(compressed).map(([key, body]) => [
-          key,
-          `"${crypto.createHash('sha256').update(body).digest('base64url')}"`,
-        ]),
-      ),
-    };
-    cache.set(name, asset);
+    return asset;
   }
-  const encoding = encodingFor(req.headers['accept-encoding'], asset.compressed);
-  const body = asset.compressed[encoding || 'identity'];
-  const etag = asset.etags[encoding || 'identity'];
-  res.setHeader(
-    'Content-Type',
-    `${mime}${/text|javascript|json|svg/.test(mime) ? '; charset=utf-8' : ''}`,
-  );
-  res.setHeader('Vary', 'Accept-Encoding');
-  res.setHeader('ETag', etag);
-  if (!req.admin) {
-    const versioned = req.urlObj.searchParams.get('v') === version && name !== 'sw.js';
-    res.setHeader(
-      'Cache-Control',
+  function assetUrl(name) {
+    const digest = (file) => loadAsset(file).etags.identity.slice(1, -1);
+    // An installed app must refresh its fallback shell after any asset changes,
+    // even when package.json and the worker source itself are unchanged.
+    const version =
       name === 'sw.js'
-        ? 'no-cache'
-        : versioned
-          ? 'public, max-age=31536000, immutable'
-          : 'public, max-age=3600',
-    );
+        ? crypto
+            .createHash('sha256')
+            .update(
+              JSON.stringify(
+                Object.keys(assets)
+                  .sort()
+                  .map((file) => [file, digest(file)]),
+              ),
+            )
+            .digest('base64url')
+        : digest(name);
+    return `/${name}?v=${version}`;
   }
-  if (name === 'sw.js') res.setHeader('Service-Worker-Allowed', '/');
-  if (name === 'offline.html') res.setHeader('X-Robots-Tag', 'noindex, nofollow');
-  if (
-    !req.admin &&
-    String(req.headers['if-none-match'] || '')
-      .split(',')
-      .some((value) => value.trim().replace(/^W\//, '') === etag || value.trim() === '*')
-  ) {
-    res.writeHead(304);
-    res.end();
+  function serveAsset(req, res) {
+    const name = req.urlObj.pathname.slice(1);
+    const mime = assets[name];
+    if (!Object.hasOwn(assets, name)) return false;
+    if (!['GET', 'HEAD'].includes(req.method)) {
+      res.writeHead(405, { Allow: 'GET, HEAD', 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Methode niet toegestaan');
+      return true;
+    }
+    const asset = loadAsset(name);
+    const encoding = encodingFor(req.headers['accept-encoding'], asset.compressed);
+    const body = asset.compressed[encoding || 'identity'];
+    const etag = asset.etags[encoding || 'identity'];
+    res.setHeader(
+      'Content-Type',
+      `${mime}${/text|javascript|json|svg/.test(mime) ? '; charset=utf-8' : ''}`,
+    );
+    res.setHeader('Vary', 'Accept-Encoding');
+    res.setHeader('ETag', etag);
+    if (!req.admin) {
+      const versioned =
+        req.urlObj.searchParams.get('v') === asset.etags.identity.slice(1, -1) && name !== 'sw.js';
+      res.setHeader(
+        'Cache-Control',
+        name === 'sw.js'
+          ? 'no-cache'
+          : versioned
+            ? 'public, max-age=31536000, immutable'
+            : 'public, max-age=3600',
+      );
+    }
+    if (name === 'sw.js') res.setHeader('Service-Worker-Allowed', '/');
+    if (name === 'offline.html') res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+    if (
+      !req.admin &&
+      String(req.headers['if-none-match'] || '')
+        .split(',')
+        .some((value) => value.trim().replace(/^W\//, '') === etag || value.trim() === '*')
+    ) {
+      res.writeHead(304);
+      res.end();
+      return true;
+    }
+    if (encoding) res.setHeader('Content-Encoding', encoding);
+    res.setHeader('Content-Length', body.length);
+    res.writeHead(200);
+    res.end(req.method === 'HEAD' ? undefined : body);
     return true;
   }
-  if (encoding) res.setHeader('Content-Encoding', encoding);
-  res.setHeader('Content-Length', body.length);
-  res.writeHead(200);
-  res.end(req.method === 'HEAD' ? undefined : body);
-  return true;
+  return { assetUrl, serveAsset };
 }
-module.exports = { serveAsset };
+module.exports = { createAssetService, ...createAssetService() };

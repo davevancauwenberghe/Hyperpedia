@@ -45,6 +45,10 @@ function parseLabels(value) {
     ),
   ].slice(0, 12);
 }
+function editableReply(post, id) {
+  const replies = post?.replies?.filter((reply) => String(reply.id) === id) || [];
+  return replies.length === 1 && typeof replies[0].id === 'string' ? replies[0] : undefined;
+}
 
 function createAdminRoutes({ store, auth, readLoginBody, requireAdmin }) {
   const {
@@ -161,7 +165,7 @@ function createAdminRoutes({ store, auth, readLoginBody, requireAdmin }) {
     if (method === 'POST' && pathname === '/admin/posts') {
       if (requireAdmin(req, res)) return;
       const body = await collect(req);
-      const posts = postsForEdit();
+      const posts = postsForEdit(null);
       const id = crypto.randomBytes(6).toString('base64url');
       const timestamp = new Date().toISOString();
       posts.push({
@@ -182,7 +186,7 @@ function createAdminRoutes({ store, auth, readLoginBody, requireAdmin }) {
       if (requireAdmin(req, res)) return;
       const [, , , postId, replyId] = pathname.split('/').map(decodeURIComponent);
       const p = allPosts().find((x) => x.id === postId);
-      const reply = p?.replies?.find((x) => x.id === replyId);
+      const reply = editableReply(p, replyId);
       if (!p || !reply) return send(res, 'Niet gevonden', 404);
       return send(
         res,
@@ -197,9 +201,9 @@ function createAdminRoutes({ store, auth, readLoginBody, requireAdmin }) {
       if (requireAdmin(req, res)) return;
       const [, , , postId, replyId] = pathname.split('/').map(decodeURIComponent);
       const body = await collect(req);
-      const posts = postsForEdit();
+      const posts = postsForEdit(postId);
       const p = posts.find((x) => x.id === postId);
-      const reply = p?.replies?.find((x) => x.id === replyId);
+      const reply = editableReply(p, replyId);
       if (!p || !reply) return send(res, 'Niet gevonden', 404);
       if (body.revision !== postRevision(p)) return editConflict(req, res, body, postId, replyId);
       Object.assign(reply, {
@@ -216,9 +220,10 @@ function createAdminRoutes({ store, auth, readLoginBody, requireAdmin }) {
       if (requireAdmin(req, res)) return;
       const [, , , postId, replyId] = pathname.split('/').map(decodeURIComponent);
       const body = await readForm(req);
-      const posts = postsForEdit();
+      const posts = postsForEdit(postId);
       const p = posts.find((x) => x.id === postId);
       if (!p) return send(res, 'Niet gevonden', 404);
+      if (!editableReply(p, replyId)) return send(res, 'Geen unieke reactie gevonden.', 404);
       const index = p.replies.findIndex((reply) => reply.id === replyId);
       if (index < 0) return send(res, 'Niet gevonden', 404);
       if (body.revision !== postRevision(p)) return editConflict(req, res, body, postId, replyId);
@@ -231,7 +236,7 @@ function createAdminRoutes({ store, auth, readLoginBody, requireAdmin }) {
       if (requireAdmin(req, res)) return;
       const id = decodeURIComponent(pathname.split('/').pop());
       const body = await collect(req);
-      const posts = postsForEdit();
+      const posts = postsForEdit(id);
       const post = posts.find((item) => item.id === id);
       if (!post) return send(res, 'Niet gevonden', 404);
       const timestamp = new Date().toISOString();
@@ -260,7 +265,7 @@ function createAdminRoutes({ store, auth, readLoginBody, requireAdmin }) {
       if (requireAdmin(req, res)) return;
       const id = decodeURIComponent(pathname.split('/').pop());
       const body = await collect(req);
-      const posts = postsForEdit();
+      const posts = postsForEdit(id);
       const post = posts.find((item) => item.id === id);
       if (!post) return send(res, 'Niet gevonden', 404);
       if (body.revision !== postRevision(post)) return editConflict(req, res, body, id);

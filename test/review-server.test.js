@@ -140,6 +140,46 @@ test('legacy id-less reply anchors remain stable and have no broken administrati
   assert.doesNotMatch(html, /\/undefined\//);
   assert.equal((html.match(/Reactie bewerken<\/a>/g) || []).length, 1);
 });
+
+test('legacy duplicate and numeric reply IDs stay public without ambiguous administration controls', async (t) => {
+  const { base, cookie, dir } = await fixture(t, [{ id: 'legacy', title: 'Archief' }]);
+  const file = path.join(dir, 'hyperpedia-posts.json');
+  const content = JSON.stringify({
+    posts: [
+      {
+        id: 'legacy',
+        title: 'Archief',
+        replies: [
+          { id: 'same', body: 'Eerste antwoord' },
+          { id: 'same', body: 'Tweede antwoord' },
+          { id: 42, body: 'Numeriek antwoord' },
+          { id: '42', body: 'Dezelfde tekstuele sleutel' },
+        ],
+      },
+    ],
+  });
+  fs.writeFileSync(file, content);
+  for (const headers of [{}, { cookie }]) {
+    const response = await fetch(base + '/posts/legacy', { headers });
+    assert.equal(response.status, 200);
+    const html = await response.text();
+    assert.match(html, /Eerste antwoord/);
+    assert.match(html, /Tweede antwoord/);
+    assert.match(html, /Numeriek antwoord/);
+    assert.doesNotMatch(html, /Reactie bewerken<\/a>/);
+    assert.ok(html.includes(`id="${replyAnchor('id-42')}"`));
+  }
+  assert.equal(
+    (await fetch(base + '/admin/reply/legacy/same/edit', { headers: { cookie } })).status,
+    404,
+  );
+  assert.equal(
+    (await fetch(base + '/admin/reply/legacy/same/delete', { method: 'POST', headers: { cookie } }))
+      .status,
+    404,
+  );
+  assert.equal(fs.readFileSync(file, 'utf8'), content);
+});
 test('clearing a read counter requires a separate confirmation and preserves the story', async (t) => {
   const { store, base, cookie } = await fixture(t, [{ id: 'one', title: 'Een verhaal' }]);
   store.recordPostRead('one');

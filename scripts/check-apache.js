@@ -22,12 +22,15 @@ function request(ip) {
         servername: 'hyperpedia.app',
         ca: fs.readFileSync(path.join(dir, 'hyperpedia.app.pem')),
         agent: false,
+        path: '/posts/archive-test?q=private-search',
         headers: {
           Host: 'hyperpedia.app',
           'CF-Connecting-IP': ip,
           'X-Hyperpedia-Client-IP': '203.0.113.200',
           'X-Forwarded-Host': 'forged.invalid',
           'X-Forwarded-Proto': 'http',
+          Referer: 'https://private-referrer.invalid/',
+          'User-Agent': 'private-browser-identifier',
         },
       },
       (res) => {
@@ -105,6 +108,8 @@ async function eventually(check) {
       `type=bind,src=${dir},dst=/hyperpedia-test,readonly`,
       '-e',
       'APACHE_LOG_DIR=/usr/local/apache2/logs',
+      '--tmpfs',
+      '/usr/local/apache2/logs/hyperpedia:mode=0750',
     ];
     docker('run', '--rm', ...mounts, image, 'httpd', '-f', '/hyperpedia-test/httpd.conf', '-t');
     await new Promise((resolve) => backend.listen(18082, '127.0.0.1', resolve));
@@ -151,7 +156,15 @@ async function eventually(check) {
         );
       });
     }
-    console.log('Apache TLS, HSTS, trusted visitor IPs and spoofed-header rejection: passed');
+    await eventually(() => {
+      const access = docker('exec', name, 'cat', '/usr/local/apache2/logs/hyperpedia/access.log');
+      assert.match(access, /192\.0\.2\.11/);
+      assert.match(access, /GET \/posts\/archive-test HTTP\/1\.1/);
+      assert.doesNotMatch(access, /private-search|private-referrer|private-browser-identifier/);
+    });
+    console.log(
+      'Apache TLS, HSTS, trusted visitor IPs, spoofed-header rejection and minimal access logs: passed',
+    );
   } catch (error) {
     try {
       console.error(docker('logs', '--tail', '30', name));

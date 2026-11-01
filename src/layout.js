@@ -3,6 +3,7 @@ const { version: APP_VERSION } = require('../package.json');
 const { icon } = require('./icons');
 const { escapeHtml } = require('./html');
 const { getSiteUrl } = require('./origin');
+const { assetUrl } = require('./assets');
 
 const layout = (
   title,
@@ -20,7 +21,7 @@ const layout = (
     post = null,
   } = {},
 ) => {
-  const socialImage = new URL(`/social-preview.png?v=${APP_VERSION}`, siteUrl).href;
+  const socialImage = new URL(assetUrl('social-preview.png'), siteUrl).href;
   const robotDirectives =
     robots === 'index, follow' ? `${robots}, max-image-preview:large` : robots;
   const canonicalUrl = new URL(canonicalPath, siteUrl).toString();
@@ -34,17 +35,17 @@ const layout = (
   <meta name="description" content="${metaDescription}">
   <meta name="theme-color" content="#f7f1e8">
   <meta name="color-scheme" content="light dark">
-  <script src="/storage.js?v=${APP_VERSION}"></script>
-  <script src="/theme.js?v=${APP_VERSION}"></script>
-  <link rel="icon" href="/favicon.ico" sizes="any">
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=${APP_VERSION}" sizes="180x180">
+  <script src="${assetUrl('storage.js')}"></script>
+  <script src="${assetUrl('theme.js')}"></script>
+  <link rel="icon" href="${assetUrl('favicon.ico')}" sizes="any">
+  <link rel="icon" href="${assetUrl('favicon.svg')}" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="${assetUrl('apple-touch-icon.png')}" sizes="180x180">
   <meta name="apple-mobile-web-app-title" content="Hyperpedia">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="application-name" content="Hyperpedia">
-  <link rel="manifest" href="/site.webmanifest">
+  <link rel="manifest" href="${assetUrl('site.webmanifest')}">
   <meta name="robots" content="${escapeHtml(robotDirectives)}">
   <link rel="describedby" href="${escapeHtml(new URL('/llms.txt', siteUrl).href)}" type="text/plain">
   <link rel="canonical" href="${escapeHtml(canonicalUrl)}">
@@ -77,13 +78,13 @@ ${socialImage.startsWith('https:') ? `  <meta property="og:image:secure_url" con
   }
   <meta name="twitter:card" content="summary_large_image">
   <title>${safeTitle}</title>
-  <link rel="stylesheet" href="/style.css?v=${APP_VERSION}">
+  <link rel="stylesheet" href="${assetUrl('style.css')}">
   ${structuredData ? `<script type="application/ld+json">${JSON.stringify(structuredData).replace(/</g, '\\u003c')}</script>` : ''}
 </head>
 <body>
   <a class="skip-link" href="#main-content">Ga naar de inhoud</a>
   <header class="site-header">
-    <a class="brand" href="/"><img class="brand-mark" src="/favicon.svg" width="44" height="44" alt=""><span class="brand-copy"><span class="brand-title">Hyperpedia</span><small>verhalen die geruststellen</small></span></a>
+    <a class="brand" href="/"><img class="brand-mark" src="${assetUrl('favicon.svg')}" width="44" height="44" alt=""><span class="brand-copy"><span class="brand-title">Hyperpedia</span><small>verhalen die geruststellen</small></span></a>
     <nav aria-label="Hoofdnavigatie"><a class="nav-button public-nav-link" href="/leesroutes">${icon('route')}<span>Leesroutes</span></a><a class="nav-button public-nav-link" href="/leeslijst">${icon('bookmark')}<span>Mijn leeslijst</span></a>
       ${admin ? '<a class="nav-button" href="/admin">Overzicht</a><form method="post" action="/logout"><button>Uitloggen</button></form>' : ''}
       <button class="theme-toggle" type="button" aria-label="Donker thema gebruiken" aria-pressed="false">${icon('moon')}${icon('sun')}</button>
@@ -107,11 +108,11 @@ ${socialImage.startsWith('https:') ? `  <meta property="og:image:secure_url" con
       <div class="info-dialog-actions"><button type="button" data-info-close>Ik begrijp het</button></div>
     </div>
   </dialog>
-  <script src="/app.js?v=${APP_VERSION}"></script>
-  <script src="/reading.js?v=${APP_VERSION}"></script>
-  <script src="/privacy.js?v=${APP_VERSION}"></script>
-  <script src="/pwa.js?v=${APP_VERSION}"></script>
-  <script src="/archive.js?v=${APP_VERSION}"></script>
+  <script src="${assetUrl('app.js')}"></script>
+  <script src="${assetUrl('reading.js')}"></script>
+  <script src="${assetUrl('privacy.js')}"></script>
+  <script src="${assetUrl('pwa.js')}" data-worker-url="${assetUrl('sw.js')}"></script>
+  <script src="${assetUrl('archive.js')}"></script>
 </body>
 </html>`;
 };

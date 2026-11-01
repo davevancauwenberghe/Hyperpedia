@@ -163,8 +163,11 @@ function renderText(value) {
 function renderReplies(post, { admin = false } = {}) {
   const replies = post.replies || [];
   if (!replies.length) return '';
+  const replyIds = new Map();
+  for (const reply of replies)
+    replyIds.set(String(reply.id), (replyIds.get(String(reply.id)) || 0) + 1);
 
-  return `<section class="replies" aria-labelledby="replies-title"><h2 id="replies-title">Reacties</h2>${replies.map((reply, index) => `<article class="reply" id="${escapeHtml(replyAnchor(replyKey(reply, index)))}"><p class="eyebrow">Reactie op ${escapeHtml(reply.originalReplier || post.author)}</p><h3><a class="author-link" href="${attributionPath(post, reply, index)}">${escapeHtml(reply.author || 'Beheerder')}</a></h3><div>${renderText(reply.body)}</div>${admin && reply.id ? `<div class="reply-actions"><a class="button secondary" href="/admin/reply/${encodeURIComponent(post.id)}/${encodeURIComponent(reply.id)}/edit">Reactie bewerken</a><form method="post" action="/admin/reply/${encodeURIComponent(post.id)}/${encodeURIComponent(reply.id)}/delete"><input type="hidden" name="revision" value="${postRevision(post)}"><button class="danger" type="submit">Reactie verwijderen</button></form></div>` : ''}</article>`).join('')}</section>`;
+  return `<section class="replies" aria-labelledby="replies-title"><h2 id="replies-title">Reacties</h2>${replies.map((reply, index) => `<article class="reply" id="${escapeHtml(replyAnchor(replyKey(reply, index)))}"><p class="eyebrow">Reactie op ${escapeHtml(reply.originalReplier || post.author)}</p><h3><a class="author-link" href="${attributionPath(post, reply, index)}">${escapeHtml(reply.author || 'Beheerder')}</a></h3><div>${renderText(reply.body)}</div>${admin && typeof reply.id === 'string' && reply.id && replyIds.get(String(reply.id)) === 1 ? `<div class="reply-actions"><a class="button secondary" href="/admin/reply/${encodeURIComponent(post.id)}/${encodeURIComponent(reply.id)}/edit">Reactie bewerken</a><form method="post" action="/admin/reply/${encodeURIComponent(post.id)}/${encodeURIComponent(reply.id)}/delete"><input type="hidden" name="revision" value="${postRevision(post)}"><button class="danger" type="submit">Reactie verwijderen</button></form></div>` : ''}</article>`).join('')}</section>`;
 }
 
 function storySidebar(post, archive) {
@@ -251,7 +254,7 @@ async function handler(req, res) {
     res.setHeader('Allow', 'GET, HEAD, POST');
     return send(res, 'Methode niet toegestaan', 405);
   }
-  if (serveAsset(req, res, APP_VERSION)) return;
+  if (serveAsset(req, res)) return;
   if (method === 'GET' && pathname === '/privacy')
     return send(
       res,

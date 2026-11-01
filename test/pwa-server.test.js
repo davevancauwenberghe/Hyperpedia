@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { version } = require('../package.json');
+const crypto = require('node:crypto');
 
 test('public SEO, app assets and machine discovery preserve canonical stories and private views', async () => {
   process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'hyper-pwa-'));
@@ -74,10 +74,20 @@ test('public SEO, app assets and machine discovery preserve canonical stories an
     const privacy = await (await fetch(base + '/privacy')).text();
     assert.match(privacy, /Dave Van Cauwenberghe/);
     assert.match(privacy, /https:\/\/www.davevancauwenberghe.be\/contact\//);
+    assert.match(privacy, /Cloudflare verwerkt als verwerker/);
+    assert.match(privacy, /Contabo verzorgt de hosting/);
+    assert.match(privacy, /actuele termijn/);
+    process.env.PRIVACY_LOG_RETENTION_DAYS = '14';
+    assert.match(await (await fetch(base + '/privacy')).text(), /ongeveer 14 dagen/);
+    delete process.env.PRIVACY_LOG_RETENTION_DAYS;
     const html = await (await fetch(base + '/posts/story?from=selection')).text();
     assert.match(html, /apple-mobile-web-app-capable" content="yes"/);
     assert.match(html, /max-image-preview:large/);
-    assert.ok(html.includes(`${base}/social-preview.png?v=${version}`));
+    const imageHash = crypto
+      .createHash('sha256')
+      .update(fs.readFileSync(path.join(__dirname, '../public/social-preview.png')))
+      .digest('base64url');
+    assert.ok(html.includes(`${base}/social-preview.png?v=${imageHash}`));
     assert.match(html, /og:url" content="[^"?]+\/posts\/story"/);
     assert.match(html, /rel="describedby"/);
     const schema = JSON.parse(html.match(/type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]);

@@ -1,10 +1,16 @@
 const fs = require('node:fs');
 const os = require('node:os');
+const path = require('node:path');
 const assert = require('node:assert/strict');
 const { chromium } = require('playwright');
 process.env.DATA_DIR = fs.mkdtempSync(os.tmpdir() + '/hyper-pwa-browser-');
 process.env.SESSION_SECRET = 'x'.repeat(32);
 delete process.env.SITE_URL;
+// Use a disposable asset tree to replay a deployment without touching source files.
+const assetModule = require('../src/assets');
+const publicDir = path.join(process.env.DATA_DIR, 'public');
+fs.cpSync(path.join(__dirname, '../public'), publicDir, { recursive: true });
+Object.assign(assetModule, assetModule.createAssetService(publicDir));
 const store = require('../src/store');
 store.saveAdmin('admin', 'safe-password');
 store.savePosts([
@@ -77,6 +83,9 @@ async function run() {
       '/theme.js',
     ].sort();
     assert.deepEqual(await shell(), expected);
+    await context.addInitScript(() =>
+      Object.defineProperty(navigator, 'standalone', { value: true }),
+    );
     await page.goto(base + '/login');
     await page.locator('[name="username"]').fill('admin');
     await page.locator('[name="password"]').fill('safe-password');
@@ -86,6 +95,27 @@ async function run() {
     assert.equal(await page.getByRole('button', { name: 'Uitloggen', exact: true }).count(), 1);
     await page.goto(base + '/privacy');
     assert.deepEqual(await shell(), expected, 'No administrator or visited story HTML is cached');
+    const oldWorker = await page.evaluate(() => navigator.serviceWorker.controller.scriptURL);
+    const oldCaches = await page.evaluate(() => caches.keys());
+    fs.appendFileSync(path.join(publicDir, 'style.css'), '\n/* installed-app-hotfix */\n');
+    await page.reload();
+    await page.waitForFunction(
+      (previous) => navigator.serviceWorker.controller?.scriptURL !== previous,
+      oldWorker,
+    );
+    const updatedCaches = await page.evaluate(() => caches.keys());
+    assert.equal(updatedCaches.filter((name) => name.startsWith('hyperpedia-shell-')).length, 1);
+    assert.ok(oldCaches.every((name) => !updatedCaches.includes(name)));
+    assert.match(
+      await page.evaluate(async () => {
+        const cache = await caches.open(
+          (await caches.keys()).find((name) => name.startsWith('hyperpedia-shell-')),
+        );
+        return (await cache.match('/style.css')).text();
+      }),
+      /installed-app-hotfix/,
+    );
+    assert.deepEqual(await shell(), expected);
     await context.setOffline(true);
     const offline = await page.goto(base + '/posts/story');
     assert.equal(offline.status(), 503);
@@ -126,7 +156,7 @@ async function run() {
     await ios.close();
     assert.deepEqual(errors, []);
     console.log(
-      'Install enhancement, iOS standalone detection, bounded app cache, private-page exclusion, offline fallback and recovery: passed',
+      'Install enhancement, content-based updates, iOS standalone detection, bounded app cache, private-page exclusion, offline fallback and recovery: passed',
     );
   } finally {
     await browser?.close();

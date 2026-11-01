@@ -43,12 +43,15 @@ jobs:
         run: node scripts/check-container.js
       - name: Verify Apache TLS and trusted Cloudflare forwarding
         run: node scripts/check-apache.js
-      - name: Exercise a larger archive within the container memory limit
+      - name: Verify private log rotation and bounded retention
+        run: node scripts/check-logrotate.js
+      - name: Search and edit a larger archive within the container memory limit
         run: |
           container_image="$(docker compose images -q hyperpedia)"
           docker run --rm --memory=512m --network=none \
+            --env NODE_OPTIONS=--max-old-space-size=256 \
             --mount "type=bind,src=$PWD/scripts/benchmark-archive.js,dst=/app/scripts/benchmark-archive.js,readonly" \
-            "$container_image" node scripts/benchmark-archive.js 6000
+            "$container_image" node scripts/benchmark-archive.js 6000 --edits
       - name: Container logs on failure
         if: failure()
         run: docker compose logs --tail=60

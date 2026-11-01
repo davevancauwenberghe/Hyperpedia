@@ -4,6 +4,7 @@ const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const crypto = require('node:crypto');
 const APP_VERSION = require('../package.json').version;
 
 test('server module loads without a configured session secret', () => {
@@ -917,7 +918,11 @@ test('v0.5.0 keeps admin hidden, exports content, guards stale edits and preserv
     const header = html.match(/<header class="site-header">[\s\S]*?<\/header>/)[0];
     assert.doesNotMatch(header, /href="\/login"|Beheer/);
     assert.match(header, /<svg class="icon icon-moon"/);
-    assert.ok(html.includes(`style.css?v=${APP_VERSION}`));
+    const cssHash = crypto
+      .createHash('sha256')
+      .update(fs.readFileSync(path.join(__dirname, '../public/style.css')))
+      .digest('base64url');
+    assert.ok(html.includes(`style.css?v=${cssHash}`));
     assert.ok(html.includes(`class="site-version">v${APP_VERSION}`));
     assert.doesNotMatch(html, /[☾☀←→↗]/);
     const results = await (await fetch(base + '/?q=deja+ademhaling')).text();

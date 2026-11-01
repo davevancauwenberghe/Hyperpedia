@@ -13,6 +13,10 @@
 - Keep five private pre-edit archive backups, add counter-reset confirmation, handle shutdown/rejections, and split admin, layout, asset, security and origin handling into focused modules.
 - Run the default image as Node, allow 512 MiB and a graceful stop window on the VPS, and retire Fly-only deployment/client-IP handling.
 - Add ESLint/Prettier, Dependabot for npm/Actions/Docker, pinned Action commits, synthetic load measurements and regressions for the review findings.
+- Accept legacy duplicate/numeric reply IDs and old counter values on reads without rewriting data; retain strict write validation and report compatibility warnings in the read-only data check.
+- Make password-hash upgrades best-effort without weakening concurrent-reset checks; derive immutable asset URLs and installed-app updates from content hashes.
+- Bound edit-time memory with single-story copies, on-disk backups, streamed atomic archive writes and reuse of the saved snapshot; exercise three edits and searches under the real 512 MiB container limit.
+- Name Cloudflare and Contabo in the privacy details; minimize access logs and isolate Hyperpedia's daily, approximately two-week log retention.
 
 ## 0.6.3 — 2026-10-29
 

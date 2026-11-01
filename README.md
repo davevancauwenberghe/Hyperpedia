@@ -14,7 +14,7 @@ De Compose-configuratie draait Hyperpedia via Coolify achter een bestaande Apach
 - `npm run check:data` controleert de gegevens zonder te schrijven en toont alleen aantallen. Behoud één schrijvend proces/container.
 - De container draait als `node` (UID/GID 1000), heeft een geheugenlimiet van 512 MiB en krijgt vijftien seconden om netjes af te sluiten.
 
-De Apache-vhost gebruikt `mod_remoteip` met uitsluitend Cloudflare's gepubliceerde proxy-adressen en stuurt HSTS op HTTPS. Installeer configuratiewijzigingen apart op de VPS en controleer ze met `apache2ctl configtest` vóór herladen. Houd de proxy-adressen actueel via de bronlinks in het configuratiebestand.
+De Apache-vhost gebruikt `mod_remoteip` met uitsluitend Cloudflare's gepubliceerde proxy-adressen en stuurt HSTS op HTTPS. Hyperpedia heeft een eigen logmap en een dagelijkse rotatie van ongeveer twee weken; de toegangslog bevat geen zoektermen, verwijzende pagina of browseridentificatie.
 
 ## Lokaal starten
 
@@ -32,17 +32,17 @@ De beheerderopdracht vraagt tweemaal om een verborgen wachtwoord van minimaal ze
 
 Verhalen en reacties staan in `hyperpedia-posts.json`, de beheerderhash in `hyperpedia-admin.json`, leestotalen in `hyperpedia-read-metrics.json` en handmatige leesroutes in `hyperpedia-reading-paths.json`. Oudere serverbestanden `hyper-posts.json` en `hyper-admin.json` blijven leesbaar. Kopieer bij een hostingmigratie de volledige `/data`-map; de beheerexport bevat niet alle account- en statistiekgegevens.
 
-Nieuwe beheerwachtwoorden gebruiken PBKDF2-SHA256 met 600.000 iteraties. Oudere hashes blijven werken en worden bij een geslaagde login opgewaardeerd, met behoud van het wachtwoord. Serversessies staan in het geheugen en eindigen bij een herstart. Onleesbare of corrupte archiefbestanden worden niet stilzwijgend overschreven.
+Nieuwe beheerwachtwoorden gebruiken PBKDF2-SHA256 met 600.000 iteraties. Oudere hashes blijven werken en worden bij een geslaagde login opgewaardeerd, met behoud van het wachtwoord. Als het wegschrijven van die upgrade mislukt, blijft de login werken en wordt de upgrade later opnieuw geprobeerd. Serversessies staan in het geheugen en eindigen bij een herstart. Onleesbare of corrupte archiefbestanden worden niet stilzwijgend overschreven.
 
-Elke archiefwijziging bewaart vijf eerdere versies in `hyperpedia-posts.json.bak` en `.bak.1` tot `.bak.4`, met private bestandsrechten. Dit helpt bij een verkeerde bewerking; maak daarnaast onafhankelijke back-ups buiten de VPS. Oude reacties zonder ID blijven leesbaar met hun bestaande ankers en krijgen geen onbruikbare bewerkknoppen.
+Elke archiefwijziging bewaart vijf eerdere versies in `hyperpedia-posts.json.bak` en `.bak.1` tot `.bak.4`, met private bestandsrechten. Dit helpt bij een verkeerde bewerking; maak daarnaast onafhankelijke back-ups buiten de VPS. Oude reacties zonder ID blijven leesbaar met hun bestaande ankers en krijgen geen onbruikbare bewerkknoppen. Ook dubbele of numerieke oude reactie-ID's blijven leesbaar; onduidelijke bewerkacties worden verborgen. Nieuwe schrijfacties blijven streng gevalideerd. `check:data` meldt oude reactie-ID's en genormaliseerde tellers als waarschuwing en wijzigt geen bestanden.
 
-Publieke verzoeken delen een onveranderlijke archiefsnapshot; sortering en zoekvelden worden per bestandsversie hergebruikt. Alleen beheerwijzigingen maken een bewerkbare kopie. Zoeken rangschikt titel- en thematreffers hoger dan treffers in de tekst en reacties. De eerste archiefpagina past haar zes rijen lokaal aan de schermbreedte aan.
+Publieke verzoeken delen een onveranderlijke archiefsnapshot; sortering en zoekvelden worden per bestandsversie hergebruikt. Normale beheerwijzigingen kopiëren alleen het gewijzigde verhaal. Back-ups worden op schijf gekopieerd en archiefwrites worden per verhaal geserialiseerd. Zoeken rangschikt titel- en thematreffers hoger dan treffers in de tekst en reacties. De eerste archiefpagina past haar zes rijen lokaal aan de schermbreedte aan.
 
 Verhaaltellingen vereisen een expliciet signaal van toestemming vanaf dezelfde origin, worden begrensd en tellen een verhaal hoogstens eenmaal per kwartier per netwerkadres. Alleen totalen worden opgeslagen, elke dertig seconden en bij normaal afsluiten. Een abrupte processtop kan de laatste dertig seconden aan tellingen verliezen. Verhalen en beheeraanpassingen blijven direct atomair opgeslagen.
 
 Loginuploads zijn begrensd op 8 KiB, één per clientadres en 16 tegelijk, met een absolute termijn van vijf seconden. De vier wachtwoordcontroles hebben een eigen limiet. `TRUST_APACHE_PROXY=true` is uitsluitend voor de meegeleverde vhost die `X-Hyperpedia-Client-IP` overschrijft, met een backendpoort die alleen lokaal bereikbaar is.
 
-De app stuurt CSP en Permissions-Policy. Alleen eigen scripts en de exacte hashes van SEO-JSON-LD zijn toegestaan; inline handlers en externe scripts blijven geblokkeerd. `CSP_REPORT_ONLY=true` is beschikbaar voor een gecontroleerde proef. Versiegebonden statische bestanden gebruiken compressie, ETags en immutable caching; de serviceworker blijft hercontroleerbaar.
+De app stuurt CSP en Permissions-Policy. Alleen eigen scripts en de exacte hashes van SEO-JSON-LD zijn toegestaan; inline handlers en externe scripts blijven geblokkeerd. `CSP_REPORT_ONLY=true` is beschikbaar voor een gecontroleerde proef. Statische URL's gebruiken een inhoudshash, compressie, ETags en immutable caching. Een CSS- of JavaScriptwijziging krijgt daardoor ook zonder appversiewijziging een nieuwe URL. De serviceworker blijft hercontroleerbaar; zijn URL houdt rekening met alle publieke assets zodat de offline-appshell mee vernieuwt.
 
 ## Privacy en browseropslag
 
@@ -52,7 +52,7 @@ Zonder toestemming gelden leesvoorkeuren alleen voor de browsersessie. Bewaarde 
 
 ## Versies en controles
 
-`package.json` bevat de appversie voor footer, metadata en assets. Node 22 of nieuwer is vereist; de container gebruikt Node 24.
+`package.json` bevat de appversie voor footer en beheerexports; asset-URL's volgen hun inhoud. Node 22 of nieuwer is vereist; de container gebruikt Node 24.
 
 ```bash
 npm test
@@ -60,8 +60,9 @@ npm run lint
 npm run format:check
 npm run test:browser
 npm run benchmark -- 3000
+npm run benchmark -- 6000 --edits
 ```
 
 `npm run format` past de formatter toe. De benchmark maakt een tijdelijk synthetisch archief en opent geen productiegegevens. ESLint, Prettier en Playwright zijn alleen ontwikkelafhankelijkheden; de server heeft geen runtime-afhankelijkheden. De tijdelijke `minimatch`-override gebruikt de gerepareerde versie voor [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249), totdat ESLint die zelf opneemt.
 
-CI controleert Node 22/24, vier Chrome-browsercontroles, de echte Compose-image en Apache met tijdelijke certificaten. De browsertests gebruiken de aanwezige Chrome-installatie op de Ubuntu 24.04-runner, zodat geen extra browser- of systeempakketten nodig zijn. Lokaal gebruikt Playwright zijn eigen Chromium-installatie; met `BROWSER_EXECUTABLE` kun je een bestaande browser kiezen. Daarbij worden de oorspronkelijke login, gegevensbehoud na herstart, CSP, responsieve paginering en veilige proxyheaders gecontroleerd. Dependabot volgt npm, Actions en Docker; Actions zijn op commit-SHA vastgezet.
+CI controleert Node 22/24, vier Chrome-browsercontroles, de echte Compose-image, logrotatie en Apache met tijdelijke certificaten. De browsertests gebruiken de aanwezige Chrome-installatie op de Ubuntu 24.04-runner, zodat geen extra browser- of systeempakketten nodig zijn. Lokaal gebruikt Playwright zijn eigen Chromium-installatie; met `BROWSER_EXECUTABLE` kun je een bestaande browser kiezen. Daarbij worden de oorspronkelijke login, gegevensbehoud na herstart, CSP, responsieve paginering en veilige proxyheaders gecontroleerd. De containertest gebruikt een 512 MiB-limiet, een V8-heap van 256 MiB en drie echte beheeraanpassingen met zoeken na elke wijziging. Dependabot volgt npm, Actions en Docker; Actions zijn op commit-SHA vastgezet.

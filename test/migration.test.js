@@ -103,3 +103,68 @@ test('migration startup rejects an empty, incomplete or corrupt data directory',
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('read-only startup accepts legacy reply IDs and counter shapes without rewriting data', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hyper-legacy-shapes-'));
+  try {
+    assert.equal(run(dir, ['scripts/create-admin.js', 'admin', '--password-stdin']).status, 0);
+    const archive = path.join(dir, 'hyperpedia-posts.json');
+    const metrics = path.join(dir, 'hyperpedia-read-metrics.json');
+    const shapes = [
+      {
+        replies: [
+          { id: 'same', body: 'One' },
+          { id: 'same', body: 'Two' },
+        ],
+      },
+      { replies: [{ id: 42, body: 'Numeric ID' }] },
+      { count: '12' },
+      { count: undefined },
+      { count: -3 },
+    ];
+    for (const shape of shapes) {
+      fs.writeFileSync(
+        archive,
+        JSON.stringify({
+          posts: [
+            {
+              id: 'one',
+              title: 'Legacy',
+              body: 'Original text',
+              read_count: '7',
+              replies: shape.replies || [],
+            },
+          ],
+        }),
+      );
+      fs.writeFileSync(metrics, JSON.stringify({ posts: { one: { read_count: shape.count } } }));
+      const before = new Map(
+        fs.readdirSync(dir).map((name) => [name, fs.readFileSync(path.join(dir, name))]),
+      );
+      const checked = run(dir, ['scripts/check-data.js'], true);
+      assert.equal(checked.status, 0, checked.stderr);
+      const result = JSON.parse(checked.stdout);
+      assert.equal(result.stories, 1);
+      assert.ok(result.warnings.length > 0);
+      const publicRead = run(
+        dir,
+        [
+          '-e',
+          `
+        const s = require('./src/store');
+        if (s.getPost('one').body !== 'Original text') process.exit(1);
+        console.log(s.getStats().readCount);
+      `,
+        ],
+        true,
+      );
+      assert.equal(publicRead.status, 0, publicRead.stderr);
+      assert.equal(Number(publicRead.stdout), shape.count === '12' ? 12 : 0);
+      assert.deepEqual(fs.readdirSync(dir).sort(), [...before.keys()].sort());
+      for (const [name, contents] of before)
+        assert.deepEqual(fs.readFileSync(path.join(dir, name)), contents);
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

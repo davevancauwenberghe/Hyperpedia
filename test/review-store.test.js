@@ -100,7 +100,10 @@ test('reply IDs are unique within each story, while id-less archived replies rem
     file,
     JSON.stringify({ posts: [{ id: 'one', replies: [{ id: 'same' }, { id: 'same' }] }] }),
   );
-  assert.throws(() => store.allPosts(), /duplicate reply ID/);
+  const legacy = fs.readFileSync(file);
+  assert.equal(store.allPosts()[0].replies.length, 2);
+  assert.deepEqual(fs.readFileSync(file), legacy);
+  assert.throws(() => store.savePosts(store.postsForEdit()), /duplicate reply ID/);
 });
 test('five private pre-edit backups rotate and preserve the original legacy bytes', (t) => {
   const { store, dir, file } = fixture(t);
@@ -198,4 +201,122 @@ test('a password reset during verification cannot authenticate or overwrite the 
   store.saveAdmin('admin', 'replacement-password');
   assert.equal(await checking, false);
   assert.equal(store.verifyPassword('replacement-password', store.getAdmin()), true);
+});
+
+test('a failed password upgrade still permits a verified login and retries on the next login', async (t) => {
+  const { store, dir } = fixture(t);
+  const password = 'original-password';
+  const salt = 'cd'.repeat(16);
+  const record = {
+    username: 'admin',
+    salt,
+    iterations: 310000,
+    hash: crypto.pbkdf2Sync(password, salt, 310000, 32, 'sha256').toString('hex'),
+  };
+  const legacy = path.join(dir, 'hyper-admin.json');
+  fs.writeFileSync(legacy, JSON.stringify(record));
+  const rename = fs.renameSync;
+  const log = console.error;
+  const messages = [];
+  fs.renameSync = (source, target) => {
+    if (target === path.join(dir, 'hyperpedia-admin.json'))
+      throw Object.assign(new Error('disk full'), { code: 'ENOSPC' });
+    return rename(source, target);
+  };
+  console.error = (...parts) => messages.push(parts.join(' '));
+  try {
+    assert.equal(await store.checkAdminCredentials('admin', password), true);
+    assert.equal(store.getAdmin().iterations, 310000);
+    assert.deepEqual(JSON.parse(fs.readFileSync(legacy)), record);
+    assert.deepEqual(messages, ['Password hash upgrade skipped: disk full']);
+    assert.equal(messages.join(' ').includes(password), false);
+    assert.equal(
+      fs.readdirSync(dir).some((name) => name.endsWith('.tmp')),
+      false,
+    );
+  } finally {
+    fs.renameSync = rename;
+    console.error = log;
+  }
+  assert.equal(await store.checkAdminCredentials('admin', password), true);
+  assert.equal(store.getAdmin().iterations, 600000);
+});
+
+test('a password reset during the upgrade still rejects the previous password', async (t) => {
+  const { store, dir } = fixture(t);
+  const salt = 'ef'.repeat(16);
+  fs.writeFileSync(
+    path.join(dir, 'hyper-admin.json'),
+    JSON.stringify({
+      username: 'admin',
+      salt,
+      iterations: 310000,
+      hash: crypto.pbkdf2Sync('old-password', salt, 310000, 32, 'sha256').toString('hex'),
+    }),
+  );
+  const derive = crypto.pbkdf2;
+  crypto.pbkdf2 = (...args) => {
+    if (args[2] === 600000) store.saveAdmin('admin', 'replacement-password');
+    return derive(...args);
+  };
+  try {
+    assert.equal(await store.checkAdminCredentials('admin', 'old-password'), false);
+    assert.equal(store.verifyPassword('replacement-password', store.getAdmin()), true);
+  } finally {
+    crypto.pbkdf2 = derive;
+  }
+});
+
+test('single-story edits share untouched frozen text and do not reread the saved archive', (t) => {
+  const { store, file } = fixture(t);
+  store.savePosts([
+    { id: 'one', body: 'Original' },
+    { id: 'two', body: 'Unchanged' },
+  ]);
+  const previous = store.allPosts();
+  const edited = store.postsForEdit('one');
+  assert.notEqual(edited[0], previous[0]);
+  assert.equal(edited[1], previous[1]);
+  assert.ok(Object.isFrozen(edited[1]));
+  edited[0].body = 'Edited';
+  const read = fs.readFileSync;
+  let archiveReads = 0;
+  fs.readFileSync = (name, ...args) => {
+    if (name === file) archiveReads++;
+    return read(name, ...args);
+  };
+  try {
+    store.savePosts(edited);
+    assert.equal(store.allPosts()[0].body, 'Edited');
+    assert.equal(store.allPosts()[1].body, 'Unchanged');
+    assert.equal(archiveReads, 0);
+  } finally {
+    fs.readFileSync = read;
+  }
+  assert.deepEqual(read(file + '.bak'), Buffer.from(JSON.stringify({ posts: previous }) + '\n'));
+});
+
+test('an interrupted streamed save preserves the existing archive and removes temporary files', (t) => {
+  const { store, file, dir } = fixture(t);
+  store.savePosts([{ id: 'one', title: 'Original' }]);
+  const before = fs.readFileSync(file);
+  const edited = store.postsForEdit('one');
+  edited[0].title = 'Fail';
+  const write = fs.writeFileSync;
+  fs.writeFileSync = (target, content, ...args) => {
+    if (typeof content === 'string' && content.includes('"title":"Fail"'))
+      throw new Error('disk full');
+    return write(target, content, ...args);
+  };
+  try {
+    assert.throws(() => store.savePosts(edited), /disk full/);
+    assert.deepEqual(fs.readFileSync(file), before);
+    assert.equal(store.getPost('one').title, 'Original');
+    assert.equal(
+      fs.readdirSync(dir).some((name) => name.endsWith('.tmp') || name.includes('.backup-')),
+      false,
+    );
+  } finally {
+    fs.writeFileSync = write;
+  }
 });

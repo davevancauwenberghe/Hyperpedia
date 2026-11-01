@@ -6,7 +6,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const http = require('node:http');
 const zlib = require('node:zlib');
-const { version } = require('../package.json');
+const { assetUrl, createAssetService } = require('../src/assets');
 const { createReadTracking } = require('../src/read-tracking');
 
 async function fixture(t) {
@@ -78,32 +78,32 @@ function raw(url, headers = {}, method = 'GET') {
 test('versioned assets negotiate compression, use representation ETags, and keep worker updates revalidatable', async (t) => {
   const { base } = await fixture(t);
   const source = fs.readFileSync(path.join(__dirname, '../public/archive.js'));
-  const gzip = await raw(`${base}/archive.js?v=${version}`, { 'accept-encoding': 'gzip' });
+  const gzip = await raw(base + assetUrl('archive.js'), { 'accept-encoding': 'gzip' });
   assert.equal(gzip.status, 200);
   assert.equal(gzip.headers['content-encoding'], 'gzip');
   assert.deepEqual(zlib.gunzipSync(gzip.body), source);
   assert.match(gzip.headers['cache-control'], /max-age=31536000, immutable/);
   assert.equal(gzip.headers.vary, 'Accept-Encoding');
-  const br = await raw(`${base}/archive.js?v=${version}`, {
+  const br = await raw(base + assetUrl('archive.js'), {
     'accept-encoding': 'gzip;q=0, br;q=1',
   });
   assert.equal(br.headers['content-encoding'], 'br');
   assert.deepEqual(zlib.brotliDecompressSync(br.body), source);
   assert.notEqual(br.headers.etag, gzip.headers.etag);
-  const cached = await raw(`${base}/archive.js?v=${version}`, {
+  const cached = await raw(base + assetUrl('archive.js'), {
     'accept-encoding': 'gzip',
     'if-none-match': 'W/' + gzip.headers.etag,
   });
   assert.equal(cached.status, 304);
   assert.equal(cached.body.length, 0);
-  const head = await raw(`${base}/archive.js?v=${version}`, { 'accept-encoding': 'gzip' }, 'HEAD');
+  const head = await raw(base + assetUrl('archive.js'), { 'accept-encoding': 'gzip' }, 'HEAD');
   assert.equal(head.body.length, 0);
   assert.equal(Number(head.headers['content-length']), gzip.body.length);
   const plain = await raw(base + '/archive.js?v=old', { 'accept-encoding': 'gzip;q=0, br;q=0' });
   assert.equal(plain.headers['content-encoding'], undefined);
   assert.deepEqual(plain.body, source);
   assert.doesNotMatch(plain.headers['cache-control'], /immutable/);
-  const worker = await raw(`${base}/sw.js?v=${version}`);
+  const worker = await raw(base + assetUrl('sw.js'));
   assert.equal(worker.headers['cache-control'], 'no-cache');
   assert.equal(worker.headers['service-worker-allowed'], '/');
 });
@@ -136,4 +136,47 @@ test('read-abuse memory has bounded admission and expired entries can be reused'
   time += 16 * 60_000;
   assert.equal(request('over-capacity'), 200);
   assert.equal(writes, 2049);
+});
+
+test('asset and installed-app URLs change with file contents without a release version bump', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hyper-asset-change-'));
+  fs.cpSync(path.join(__dirname, '../public'), dir, { recursive: true });
+  const assets = createAssetService(dir);
+  const server = http.createServer((req, res) => {
+    req.urlObj = new URL(req.url, 'http://localhost');
+    if (!assets.serveAsset(req, res)) {
+      res.writeHead(404);
+      res.end();
+    }
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  t.after(async () => {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+  const cssUrl = assets.assetUrl('style.css');
+  const workerUrl = assets.assetUrl('sw.js');
+  const pwaUrl = assets.assetUrl('pwa.js');
+  const original = await raw(base + cssUrl);
+  assert.match(original.headers['cache-control'], /immutable/);
+  const revised = Buffer.concat([original.body, Buffer.from('\n/* a CSS hotfix */\n')]);
+  fs.writeFileSync(path.join(dir, 'style.css'), revised);
+  const revisedUrl = assets.assetUrl('style.css');
+  assert.notEqual(revisedUrl, cssUrl);
+  assert.equal(
+    new URL(revisedUrl, base).searchParams.get('v'),
+    crypto.createHash('sha256').update(revised).digest('base64url'),
+  );
+  assert.notEqual(assets.assetUrl('sw.js'), workerUrl);
+  assert.equal(assets.assetUrl('pwa.js'), pwaUrl);
+  const stale = await raw(base + cssUrl, { 'if-none-match': original.headers.etag });
+  assert.equal(stale.status, 200);
+  assert.doesNotMatch(stale.headers['cache-control'], /immutable/);
+  assert.deepEqual(stale.body, revised);
+  const current = await raw(base + revisedUrl);
+  assert.match(current.headers['cache-control'], /immutable/);
+  assert.equal((await raw(base + assets.assetUrl('sw.js'))).headers['cache-control'], 'no-cache');
+  assert.equal((await raw(base + '/constructor')).status, 404);
 });

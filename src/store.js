@@ -31,10 +31,13 @@ const emptyArchive = freeze({ posts: [] });
 const emptyPaths = freeze({ paths: [] });
 const emptyMetrics = freeze({ posts: {} });
 const jsonCache = new Map();
+function fileSignature(file) {
+  const stat = fs.statSync(file, { bigint: true });
+  return `${stat.ino}:${stat.size}:${stat.mtimeNs}:${stat.ctimeNs}`;
+}
 function readJson(file, fallback) {
   try {
-    const stat = fs.statSync(file, { bigint: true });
-    const signature = `${stat.ino}:${stat.size}:${stat.mtimeNs}:${stat.ctimeNs}`;
+    const signature = fileSignature(file);
     const cached = jsonCache.get(file);
     if (cached?.signature === signature) return cached.value;
     const value = freeze(JSON.parse(fs.readFileSync(file, 'utf8')));
@@ -51,7 +54,8 @@ function atomicWrite(file, content) {
   let descriptor;
   try {
     descriptor = fs.openSync(tmp, 'wx', 0o600);
-    fs.writeFileSync(descriptor, content);
+    if (typeof content === 'function') content(descriptor);
+    else fs.writeFileSync(descriptor, content);
     fs.fsyncSync(descriptor);
     fs.closeSync(descriptor);
     descriptor = undefined;
@@ -81,7 +85,7 @@ function normalizePost(post) {
     replies: content.replies || [],
   };
 }
-function validatePosts(posts) {
+function validatePosts(posts, { reading = false } = {}) {
   if (!Array.isArray(posts)) throw new Error('Invalid archive: posts must be an array.');
   const ids = new Set();
   for (const post of posts) {
@@ -106,8 +110,10 @@ function validatePosts(posts) {
         ['body', 'author', 'originalReplier'].some(
           (field) => reply[field] != null && typeof reply[field] !== 'string',
         ) ||
-        (reply.id != null && typeof reply.id !== 'string') ||
-        (reply.id && replyIds.has(reply.id))
+        (reply.id != null &&
+          typeof reply.id !== 'string' &&
+          !(reading && typeof reply.id === 'number' && Number.isFinite(reply.id))) ||
+        (!reading && reply.id && replyIds.has(reply.id))
       ) {
         throw new Error(
           'Invalid archive reply or duplicate reply ID. Restore or repair the archive before editing.',
@@ -124,7 +130,7 @@ let archiveSnapshot;
 function snapshot() {
   const stored = readJsonWithLegacy(storePath, legacyStorePath, emptyArchive);
   if (stored !== archiveSource) {
-    const raw = validatePosts(stored?.posts);
+    const raw = validatePosts(stored?.posts, { reading: true });
     const posts = freeze(raw.map(normalizePost));
     archiveSnapshot = {
       raw,
@@ -139,8 +145,13 @@ function snapshot() {
 function allPosts() {
   return snapshot().posts;
 }
-function postsForEdit() {
-  return structuredClone(allPosts());
+function postsForEdit(id) {
+  const posts = allPosts();
+  // Bulk tools can explicitly request a full clone; normal administration only
+  // copies the story being changed and shares every untouched frozen record.
+  return arguments.length
+    ? posts.map((post) => (post.id === id ? structuredClone(post) : post))
+    : structuredClone(posts);
 }
 function getPost(id) {
   return snapshot().byId.get(id);
@@ -179,22 +190,50 @@ function savePathDefinitions(definitions) {
 function backupPosts() {
   const source = fs.existsSync(storePath) ? storePath : legacyStorePath;
   if (!fs.existsSync(source)) return;
-  // Five private pre-edit copies, including original legacy bytes.
-  for (let index = 4; index >= 1; index--) {
-    const previous = index === 1 ? `${storePath}.bak` : `${storePath}.bak.${index - 1}`;
-    if (fs.existsSync(previous)) fs.renameSync(previous, `${storePath}.bak.${index}`);
+  // Copy on disk inside a private directory instead of buffering the archive.
+  const directory = fs.mkdtempSync(`${storePath}.backup-`);
+  const temporary = path.join(directory, 'archive');
+  try {
+    fs.copyFileSync(source, temporary);
+    fs.chmodSync(temporary, 0o600);
+    const descriptor = fs.openSync(temporary, 'r');
+    try {
+      fs.fsyncSync(descriptor);
+    } finally {
+      fs.closeSync(descriptor);
+    }
+    // Five private pre-edit copies, including original legacy bytes.
+    for (let index = 4; index >= 1; index--) {
+      const previous = index === 1 ? `${storePath}.bak` : `${storePath}.bak.${index - 1}`;
+      if (fs.existsSync(previous)) fs.renameSync(previous, `${storePath}.bak.${index}`);
+    }
+    fs.renameSync(temporary, `${storePath}.bak`);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
   }
-  atomicWrite(`${storePath}.bak`, fs.readFileSync(source));
 }
 function savePosts(posts) {
   validatePosts(posts);
   snapshot(); // A corrupt existing archive must never be overwritten.
   flushReadMetrics(); // Preserve embedded totals before stripping old fields.
   backupPosts();
-  writeJson(storePath, { posts: posts.map(normalizePost) });
+  const stored = freeze({ posts: posts.map(normalizePost) });
+  // Serialize one story at a time, avoiding a second archive-sized string.
+  atomicWrite(storePath, (descriptor) => {
+    fs.writeFileSync(descriptor, '{"posts":[');
+    stored.posts.forEach((post, index) => {
+      if (index) fs.writeFileSync(descriptor, ',');
+      fs.writeFileSync(descriptor, JSON.stringify(post));
+    });
+    fs.writeFileSync(descriptor, ']}\n');
+  });
+  // Our own writes already have a valid snapshot: do not parse a second copy
+  // of all story text on the next read. External replacements still invalidate it.
+  jsonCache.set(storePath, { signature: fileSignature(storePath), value: stored });
 }
 
 let metricsSource;
+let metricsSnapshot;
 function getReadMetrics() {
   const stored = readJson(readMetricsPath, emptyMetrics);
   if (stored !== metricsSource) {
@@ -202,20 +241,22 @@ function getReadMetrics() {
       !stored ||
       !stored.posts ||
       typeof stored.posts !== 'object' ||
-      Array.isArray(stored.posts) ||
-      Object.values(stored.posts).some(
-        (value) =>
-          !value ||
-          typeof value !== 'object' ||
-          !Number.isSafeInteger(value.read_count) ||
-          value.read_count < 0,
-      )
+      Array.isArray(stored.posts)
     ) {
       throw new Error('Invalid read metrics store.');
     }
+    const posts = Object.create(null);
+    for (const [id, value] of Object.entries(stored.posts)) {
+      const count = Number(value?.read_count);
+      posts[id] = {
+        ...(value && typeof value === 'object' && !Array.isArray(value) ? value : {}),
+        read_count: Number.isSafeInteger(count) && count >= 0 ? count : 0,
+      };
+    }
+    metricsSnapshot = freeze({ posts });
     metricsSource = stored;
   }
-  return stored;
+  return metricsSnapshot;
 }
 const pendingReads = new Map();
 function diskCount(metrics, post) {
@@ -308,10 +349,15 @@ async function checkAdminCredentials(username, password) {
   const passwordMatches = await verifyPasswordAsync(password, admin);
   if (!passwordMatches || admin?.username !== username || getAdmin() !== admin) return false;
   if (admin.iterations < PASSWORD_ITERATIONS) {
-    const upgraded = await hashPasswordAsync(password);
-    // Never overwrite a concurrent password reset or accept its old password.
-    if (getAdmin() !== admin) return false;
-    writeJson(adminPath, { username: admin.username, ...upgraded });
+    try {
+      const upgraded = await hashPasswordAsync(password);
+      // Never overwrite a concurrent password reset or accept its old password.
+      if (getAdmin() !== admin) return false;
+      writeJson(adminPath, { username: admin.username, ...upgraded });
+    } catch (error) {
+      console.error('Password hash upgrade skipped:', error.message);
+      if (getAdmin() !== admin) return false;
+    }
   }
   return true;
 }
@@ -329,11 +375,27 @@ function inspectExistingData() {
   }
   getReadMetrics();
   const routes = getPathDefinitions();
+  const warnings = [];
+  let legacyReplies = 0;
+  for (const post of posts) {
+    const ids = new Set();
+    for (const reply of post.replies) {
+      if ((reply.id != null && typeof reply.id !== 'string') || (reply.id && ids.has(reply.id)))
+        legacyReplies++;
+      if (reply.id) ids.add(reply.id);
+    }
+  }
+  if (legacyReplies) warnings.push({ code: 'LEGACY_REPLY_IDS', records: legacyReplies });
+  const legacyCounters = Object.values(metricsSource.posts).filter(
+    (value) => !Number.isSafeInteger(value?.read_count) || value.read_count < 0,
+  ).length;
+  if (legacyCounters) warnings.push({ code: 'NORMALIZED_READ_COUNTERS', records: legacyCounters });
   return {
     stories: posts.length,
     replies: posts.reduce((total, post) => total + post.replies.length, 0),
     curatedRoutes: routes.length,
     administrator: 'configured',
+    ...(warnings.length ? { warnings } : {}),
   };
 }
 if (process.env.REQUIRE_EXISTING_DATA === 'true') inspectExistingData();

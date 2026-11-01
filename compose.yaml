@@ -16,6 +16,7 @@ services:
       SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET in Coolify before deploying}
       PRIVACY_CONTROLLER: Dave Van Cauwenberghe
       PRIVACY_CONTACT_URL: https://www.davevancauwenberghe.be/contact/
+      PRIVACY_LOG_RETENTION_DAYS: '14'
       REQUIRE_EXISTING_DATA: 'true'
       TRUST_APACHE_PROXY: 'true'
     ports:
