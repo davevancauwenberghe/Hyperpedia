@@ -200,6 +200,65 @@ test('clearing a read counter requires a separate confirmation and preserves the
   assert.equal(store.getStats().readCount, 0);
   assert.equal(store.getPost('one').title, 'Een verhaal');
 });
+
+test('untouched legacy reply IDs cannot block unrelated administrator writes', async (t) => {
+  const { store, base, cookie, revision, dir } = await fixture(t, [
+    { id: 'clean', title: 'Clean', author: 'Auteur', body: 'Original' },
+  ]);
+  const legacy = {
+    id: 'legacy',
+    title: 'Oud verhaal',
+    replies: [
+      { id: 'duplicate', body: 'Eerste' },
+      { id: 'duplicate', body: 'Tweede' },
+      { id: 42, body: 'Numeriek' },
+    ],
+  };
+  const file = path.join(dir, 'hyperpedia-posts.json');
+  fs.writeFileSync(file, JSON.stringify({ posts: [...store.allPosts(), legacy] }));
+  const headers = { cookie };
+  const edit = await fetch(base + '/admin/edit/clean', {
+    method: 'POST',
+    headers,
+    redirect: 'manual',
+    body: new URLSearchParams({
+      revision: await revision('/admin/edit/clean'),
+      title: 'Edited',
+      author: 'Auteur',
+      body: 'Edited text',
+    }),
+  });
+  assert.equal(edit.status, 302);
+  assert.equal(store.getPost('clean').title, 'Edited');
+  const reply = await fetch(base + '/admin/reply/clean', {
+    method: 'POST',
+    headers,
+    redirect: 'manual',
+    body: new URLSearchParams({ originalReplier: 'Auteur', author: 'Beheerder', body: 'A reply' }),
+  });
+  assert.equal(reply.status, 302);
+  const create = await fetch(base + '/admin/posts', {
+    method: 'POST',
+    headers,
+    redirect: 'manual',
+    body: new URLSearchParams({ title: 'New story', author: 'Auteur', body: 'New text' }),
+  });
+  assert.equal(create.status, 302);
+  assert.equal(store.allPosts().length, 3);
+  assert.deepEqual(store.getPost('legacy').replies, legacy.replies);
+  assert.deepEqual(
+    JSON.parse(fs.readFileSync(file)).posts.find((post) => post.id === 'legacy').replies,
+    legacy.replies,
+  );
+  const before = fs.readFileSync(file);
+  const changedLegacy = store.postsForEdit('legacy');
+  changedLegacy.find((post) => post.id === 'legacy').title = 'Changed';
+  assert.throws(() => store.savePosts(changedLegacy), /duplicate reply ID/);
+  const newInvalid = store.postsForEdit(null);
+  newInvalid.push({ id: 'invalid-new', replies: [{ id: 42 }] });
+  assert.throws(() => store.savePosts(newInvalid), /Invalid archive reply/);
+  assert.deepEqual(fs.readFileSync(file), before);
+});
 test('public counters require an explicit first-party consent signal, deduplicate repeats and rate limit bursts', async (t) => {
   const { store, base, dir } = await fixture(
     t,

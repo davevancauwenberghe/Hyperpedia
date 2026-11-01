@@ -85,7 +85,7 @@ function normalizePost(post) {
     replies: content.replies || [],
   };
 }
-function validatePosts(posts, { reading = false } = {}) {
+function validatePosts(posts, { reading = false, trusted = new Set() } = {}) {
   if (!Array.isArray(posts)) throw new Error('Invalid archive: posts must be an array.');
   const ids = new Set();
   for (const post of posts) {
@@ -104,7 +104,7 @@ function validatePosts(posts, { reading = false } = {}) {
       throw new Error('Invalid archive record. Restore or repair the archive before editing.');
     }
     const replyIds = new Set();
-    for (const reply of post.replies || []) {
+    for (const reply of trusted.has(post) ? [] : post.replies || []) {
       if (
         !reply ||
         ['body', 'author', 'originalReplier'].some(
@@ -213,8 +213,10 @@ function backupPosts() {
   }
 }
 function savePosts(posts) {
-  validatePosts(posts);
-  snapshot(); // A corrupt existing archive must never be overwritten.
+  const current = snapshot(); // A corrupt existing archive must never be overwritten.
+  // Only unchanged, deeply frozen records from the current snapshot may keep
+  // legacy reply IDs. Every new or edited story still receives strict validation.
+  validatePosts(posts, { trusted: new Set(current.posts) });
   flushReadMetrics(); // Preserve embedded totals before stripping old fields.
   backupPosts();
   const stored = freeze({ posts: posts.map(normalizePost) });

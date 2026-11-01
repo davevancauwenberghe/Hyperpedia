@@ -99,15 +99,23 @@ async function run() {
     const oldCaches = await page.evaluate(() => caches.keys());
     fs.appendFileSync(path.join(publicDir, 'style.css'), '\n/* installed-app-hotfix */\n');
     await page.reload();
-    await page.waitForFunction(async (previous) => {
-      const registration = await navigator.serviceWorker.getRegistration();
-      const controller = navigator.serviceWorker.controller;
-      return (
-        controller &&
-        controller.scriptURL !== previous &&
-        registration?.active?.state === 'activated'
-      );
-    }, oldWorker);
+    // Poll from Node: an async waitForFunction predicate in Playwright 1.64
+    // settles after its first evaluation, including when it resolves to false.
+    const updateDeadline = Date.now() + 30_000;
+    for (;;) {
+      const activated = await page.evaluate(async (previous) => {
+        const registration = await navigator.serviceWorker.getRegistration();
+        const controller = navigator.serviceWorker.controller;
+        return Boolean(
+          controller &&
+          controller.scriptURL !== previous &&
+          registration?.active?.state === 'activated',
+        );
+      }, oldWorker);
+      if (activated) break;
+      assert.ok(Date.now() < updateDeadline, 'The installed-app worker update never activated');
+      await page.waitForTimeout(100);
+    }
     const updatedCaches = await page.evaluate(() => caches.keys());
     const workerStates = await Promise.all(
       context.serviceWorkers().map(async (worker) => {
